@@ -1,0 +1,3141 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HVAC 시방서 자동생성 시스템</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<style>
+  :root {
+    --blue-dark: #1a2b4a;
+    --blue-mid: #2c4a7c;
+    --blue-accent: #3a7bd5;
+    --blue-light: #e8f0fc;
+    --steel: #4a6080;
+    --line: #d0dae8;
+    --bg: #f4f7fb;
+    --white: #ffffff;
+    --text: #1e2d42;
+    --text-sub: #5a6a80;
+    --green: #2e7d52;
+    --green-light: #e8f5ee;
+    --orange: #c0582a;
+    --orange-light: #fdf0ea;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+
+  /* HEADER */
+  .header {
+    background: var(--blue-dark);
+    color: white;
+    padding: 0 32px;
+    height: 64px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .header-logo .icon {
+    width: 36px;
+    height: 36px;
+    background: var(--blue-accent);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+  }
+  .header-title {
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+  .header-sub {
+    font-size: 11px;
+    color: rgba(255,255,255,0.55);
+    margin-top: 1px;
+  }
+  .header-badge {
+    background: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.2);
+    color: rgba(255,255,255,0.8);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* LAYOUT */
+  .app-layout {
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    min-height: calc(100vh - 64px);
+  }
+
+  /* LEFT SIDEBAR */
+  .sidebar {
+    background: var(--white);
+    border-right: 1px solid var(--line);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  .sidebar-top {
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid var(--line);
+    background: var(--blue-light);
+  }
+  .sidebar-top h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-mid);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  /* 프로젝트 정보 */
+  .project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .project-info input {
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 7px 10px;
+    font-size: 12px;
+    font-family: inherit;
+    background: var(--white);
+    color: var(--text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+  .project-info input:focus { border-color: var(--blue-accent); }
+  .project-info input::placeholder { color: var(--text-sub); }
+
+  /* SELECT ALL BAR */
+  .select-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--line);
+    background: #fafbfd;
+  }
+  .select-bar-left {
+    font-size: 12px;
+    color: var(--text-sub);
+  }
+  .select-bar-left strong {
+    color: var(--blue-accent);
+    font-weight: 700;
+  }
+  .btn-selectall {
+    font-size: 11px;
+    padding: 4px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: white;
+    cursor: pointer;
+    color: var(--text-sub);
+    transition: all 0.15s;
+  }
+  .btn-selectall:hover { border-color: var(--blue-accent); color: var(--blue-accent); }
+
+  /* CATEGORY LIST */
+  .category-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 0;
+  }
+
+  .cat-section { border-bottom: 1px solid var(--line); }
+
+  .cat-header {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    cursor: pointer;
+    background: #fafbfd;
+    transition: background 0.12s;
+    user-select: none;
+  }
+  .cat-header:hover { background: var(--blue-light); }
+
+  .cat-checkbox {
+    width: 16px;
+    height: 16px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: var(--blue-accent);
+    flex-shrink: 0;
+  }
+  .cat-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-dark);
+    flex: 1;
+  }
+  .cat-count {
+    font-size: 10px;
+    color: var(--text-sub);
+    margin-right: 6px;
+  }
+  .cat-toggle {
+    font-size: 11px;
+    color: var(--text-sub);
+    transition: transform 0.2s;
+  }
+  .cat-toggle.open { transform: rotate(90deg); }
+
+  .cat-items {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease;
+  }
+  .cat-items.open { max-height: 1000px; }
+
+  .item-row {
+    display: flex;
+    align-items: center;
+    padding: 8px 20px 8px 36px;
+    cursor: pointer;
+    transition: background 0.1s;
+    border-top: 1px solid #f0f4fa;
+  }
+  .item-row:hover { background: var(--blue-light); }
+  .item-row.selected { background: var(--blue-light); }
+
+  .item-checkbox {
+    width: 15px;
+    height: 15px;
+    margin-right: 10px;
+    cursor: pointer;
+    accent-color: var(--blue-accent);
+    flex-shrink: 0;
+  }
+  .item-name {
+    font-size: 12.5px;
+    color: var(--text);
+    flex: 1;
+  }
+  .item-tag {
+    font-size: 10px;
+    background: var(--blue-light);
+    color: var(--blue-accent);
+    padding: 2px 6px;
+    border-radius: 3px;
+  }
+  .badge {
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    margin-left: 4px;
+  }
+  .badge-required {
+    background: #e8f5ee;
+    color: #2e7d52;
+    border: 1px solid #b2d8c0;
+  }
+  .badge-optional {
+    background: #fdf0ea;
+    color: #c0582a;
+    border: 1px solid #f0c8b0;
+  }
+  .badge-sanitary {
+    background: #f0e8fc;
+    color: #7a3ab5;
+    border: 1px solid #d0b0f0;
+  }
+
+  /* 범례 */
+  .legend {
+    display: flex;
+    gap: 8px;
+    padding: 10px 16px;
+    background: #fafbfd;
+    border-bottom: 1px solid var(--line);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 10.5px;
+    color: var(--text-sub);
+  }
+
+  /* BOTTOM SIDEBAR */
+  .sidebar-bottom {
+    padding: 14px 20px;
+    border-top: 2px solid var(--line);
+    background: var(--white);
+  }
+
+  .btn-generate {
+    width: 100%;
+    padding: 12px;
+    background: var(--blue-accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 0.15s;
+    margin-bottom: 8px;
+    font-family: inherit;
+  }
+  .btn-generate:hover { background: var(--blue-mid); }
+  .btn-generate:disabled { background: #aaa; cursor: not-allowed; }
+
+  .btn-word {
+    width: 100%;
+    padding: 10px;
+    background: var(--green-light);
+    color: var(--green);
+    border: 1.5px solid #b2d8c0;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.15s;
+    font-family: inherit;
+    display: none;
+  }
+  .btn-word:hover { background: var(--green); color: white; border-color: var(--green); }
+  .btn-word.visible { display: block; }
+
+  /* MAIN CONTENT */
+  .main {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* TABS */
+  .tab-bar {
+    display: flex;
+    border-bottom: 2px solid var(--line);
+    background: var(--white);
+    padding: 0 28px;
+  }
+  .tab {
+    padding: 14px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-sub);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+  }
+  .tab:hover { color: var(--blue-accent); }
+  .tab.active { color: var(--blue-accent); border-bottom-color: var(--blue-accent); }
+
+  /* CONTENT AREA */
+  .content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px;
+  }
+
+  /* EMPTY STATE */
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 60vh;
+    color: var(--text-sub);
+    text-align: center;
+  }
+  .empty-icon { font-size: 56px; margin-bottom: 16px; opacity: 0.4; }
+  .empty-title { font-size: 17px; font-weight: 700; margin-bottom: 6px; color: var(--steel); }
+  .empty-desc { font-size: 13px; line-height: 1.6; }
+
+  /* PREVIEW */
+  .preview-doc {
+    background: white;
+    max-width: 860px;
+    margin: 0 auto;
+    box-shadow: 0 2px 20px rgba(0,0,0,0.08);
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .doc-cover {
+    background: var(--blue-dark);
+    color: white;
+    padding: 48px 56px;
+  }
+  .doc-cover-label {
+    font-size: 11px;
+    letter-spacing: 2px;
+    color: rgba(255,255,255,0.5);
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  .doc-cover-title {
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .doc-cover-proj {
+    font-size: 15px;
+    color: rgba(255,255,255,0.7);
+    margin-bottom: 28px;
+  }
+  .doc-cover-meta {
+    display: flex;
+    gap: 24px;
+    border-top: 1px solid rgba(255,255,255,0.15);
+    padding-top: 20px;
+  }
+  .doc-meta-item { font-size: 12px; }
+  .doc-meta-label { color: rgba(255,255,255,0.45); margin-bottom: 2px; }
+  .doc-meta-value { color: rgba(255,255,255,0.85); }
+
+  .doc-toc {
+    padding: 32px 56px;
+    border-bottom: 2px solid var(--line);
+    background: var(--blue-light);
+  }
+  .doc-toc h3 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--blue-mid);
+    margin-bottom: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .toc-items { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toc-chip {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--text);
+  }
+
+  .doc-body { padding: 40px 56px; }
+
+  .spec-section { margin-bottom: 44px; }
+  .spec-cat-title {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--blue-accent);
+    margin-bottom: 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--blue-light);
+  }
+
+  .spec-item { margin-bottom: 28px; }
+  .spec-item-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+  }
+  .spec-item-num {
+    width: 26px;
+    height: 26px;
+    background: var(--blue-mid);
+    color: white;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  .spec-item-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--blue-dark);
+  }
+
+  .spec-content {
+    background: #fafbfd;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 18px 20px;
+    font-size: 12.5px;
+    line-height: 1.9;
+    color: var(--text);
+    white-space: pre-wrap;
+    font-family: 'Malgun Gothic', sans-serif;
+  }
+
+  /* LOADING */
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(26,43,74,0.65);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+  }
+  .loading-overlay.show { display: flex; }
+  .loading-box {
+    background: white;
+    border-radius: 12px;
+    padding: 36px 48px;
+    text-align: center;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.2);
+  }
+  .loading-spinner {
+    width: 44px;
+    height: 44px;
+    border: 4px solid var(--line);
+    border-top-color: var(--blue-accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-text { font-size: 14px; color: var(--text-sub); }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    background: var(--blue-dark);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 1000;
+  }
+  .toast.show { transform: translateY(0); opacity: 1; }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">
+    <div class="icon">🏗️</div>
+    <div>
+      <div class="header-title">HVAC 시방서 자동생성 시스템</div>
+      <div class="header-sub">기계설비 설계 / 시공 시방서</div>
+    </div>
+  </div>
+  <div class="header-badge">KCS 31 표준시방서 기반</div>
+</div>
+
+<div class="app-layout">
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-top">
+      <h2>프로젝트 정보</h2>
+      <div class="project-info">
+        <input type="text" id="projName" placeholder="프로젝트명 (예: ○○빌딩 신축공사)">
+        <input type="text" id="projLocation" placeholder="현장 위치 (예: 서울시 강남구)">
+        <input type="text" id="projClient" placeholder="발주자 (예: ○○주식회사)">
+      </div>
+    </div>
+
+    <div class="select-bar">
+      <div class="select-bar-left">선택된 항목: <strong id="selectedCount">0</strong>개</div>
+      <button class="btn-selectall" onclick="selectAll()">전체 선택</button>
+    </div>
+
+    <div class="legend">
+      <div class="legend-item"><span class="badge badge-required">필수</span> 모든 프로젝트</div>
+      <div class="legend-item"><span class="badge badge-optional">선택</span> 프로젝트별</div>
+      <div class="legend-item"><span class="badge badge-sanitary">위생</span> 위생공사 시</div>
+    </div>
+
+    <div style="display:flex; gap:6px; padding:8px 14px; border-bottom:1px solid var(--line); background:#fafbfd; flex-wrap:wrap;">
+      <button onclick="quickSelect('required')" style="font-size:10.5px;padding:4px 10px;border:1px solid #b2d8c0;border-radius:12px;background:#e8f5ee;color:#2e7d52;cursor:pointer;font-weight:700;">✔ 필수만</button>
+      <button onclick="quickSelect('cooling')" style="font-size:10.5px;padding:4px 10px;border:1px solid #b0c8f0;border-radius:12px;background:#e8f0fc;color:#2c4a7c;cursor:pointer;font-weight:700;">✔ 냉난방 세트</button>
+      <button onclick="quickSelect('ventduct')" style="font-size:10.5px;padding:4px 10px;border:1px solid #b0d4c0;border-radius:12px;background:#e8f5f0;color:#1e6040;cursor:pointer;font-weight:700;">✔ 환기·덕트 세트</button>
+      <button onclick="quickSelect('sanitary')" style="font-size:10.5px;padding:4px 10px;border:1px solid #d0b0f0;border-radius:12px;background:#f0e8fc;color:#7a3ab5;cursor:pointer;font-weight:700;">✔ 위생 세트</button>
+      <button onclick="quickSelect('clear')" style="font-size:10.5px;padding:4px 10px;border:1px solid var(--line);border-radius:12px;background:white;color:var(--text-sub);cursor:pointer;">✕ 초기화</button>
+    </div>
+
+    <div class="category-list" id="categoryList"></div>
+
+    <div class="sidebar-bottom">
+      <button class="btn-generate" onclick="generatePreview()">📋 시방서 미리보기 생성</button>
+      <button class="btn-word" id="btnWord" onclick="downloadWord()">📄 Word(.docx) 다운로드</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab(this, 'preview')">📋 미리보기</div>
+      <div class="tab" onclick="switchTab(this, 'guide')">ℹ️ 사용 안내</div>
+    </div>
+
+    <div class="content-area">
+      <!-- PREVIEW TAB -->
+      <div id="tab-preview">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">📐</div>
+          <div class="empty-title">항목을 선택하고 시방서를 생성하세요</div>
+          <div class="empty-desc">좌측에서 적용할 설비 항목을 체크한 후<br>「시방서 미리보기 생성」 버튼을 클릭하세요.</div>
+        </div>
+        <div id="previewContent" style="display:none;"></div>
+      </div>
+
+      <!-- GUIDE TAB -->
+      <div id="tab-guide" style="display:none;">
+        <div style="max-width:600px; margin:0 auto;">
+          <h2 style="font-size:18px; font-weight:700; margin-bottom:20px; color:var(--blue-dark);">사용 안내</h2>
+          <div style="background:white; border-radius:8px; padding:24px; border:1px solid var(--line); margin-bottom:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:var(--blue-accent); margin-bottom:12px;">① 프로젝트 정보 입력</h3>
+            <p style="font-size:13px; line-height:1.7; color:var(--text-sub);">좌측 상단에 프로젝트명, 작성일, 작성회사를 입력하면 시방서 표지에 자동 반영됩니다.</p>
+          </div>
+          <div style="background:white; border-radius:8px; padding:24px; border:1px solid var(--line); margin-bottom:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:var(--blue-accent); margin-bottom:12px;">② 적용 항목 선택</h3>
+            <p style="font-size:13px; line-height:1.7; color:var(--text-sub);">이번 프로젝트에 적용되는 설비 항목만 체크합니다. 카테고리 체크박스로 하위 항목을 일괄 선택할 수 있습니다.</p>
+          </div>
+          <div style="background:white; border-radius:8px; padding:24px; border:1px solid var(--line); margin-bottom:16px;">
+            <h3 style="font-size:13px; font-weight:700; color:var(--blue-accent); margin-bottom:12px;">③ 시방서 생성 및 다운로드</h3>
+            <p style="font-size:13px; line-height:1.7; color:var(--text-sub);">「미리보기 생성」으로 웹에서 확인 후, 「Word 다운로드」로 .docx 파일을 저장하세요. 발주처 요청 양식에 맞게 수정해서 사용하시면 됩니다.</p>
+          </div>
+          <div style="background:var(--orange-light); border-radius:8px; padding:20px; border:1px solid #f0c8b0;">
+            <h3 style="font-size:13px; font-weight:700; color:var(--orange); margin-bottom:8px;">📌 업데이트 예정</h3>
+            <p style="font-size:13px; line-height:1.7; color:var(--text-sub);">샘플 시방서 수령 후 내용 및 형식 업데이트 예정입니다. 시방서 내용은 KCS 31 표준시방서를 기반으로 작성되었습니다.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="loading-spinner"></div>
+    <div class="loading-text">시방서 생성 중...</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const HVAC_SPECS = {
+  categories: [
+
+    // ============================================================
+    // 1. 일반시방서
+    // ============================================================
+    {
+      id: "general",
+      name: "일반시방서",
+      items: [
+        {
+          id: "general_01",
+          name: "일반시방서",
+          content: `1. 일반시방서
+
+1.1 공사 개요
+본 공사는 {{PROJ_NAME}} 사업을 위해 계약자가 공급하는 HVAC 및 Plumbing 설치 및 기타 부속 설비 등의 조립, 설치 및 부속된 일체의 작업을 포함하며, 발주자 감독 직원의 감독 하에 입고 기자재의 인수, 검수, 인수기자재의 보관관리, 운반, 지정장소에서의 조립 작업 및 기기의 특성을 감안한 설치작업 및 각종 시험 등을 수행하는 공사임.
+
+1.2 공사 범위 및 위치
+{{SCOPE_LIST}}위 치 : {{LOCATION}}
+
+1.3 적용범위
+1) 본 시방서는 시설공사 중 건축기계설비 분야에 적용한다.
+2) 본 시방서는 설계도서(이하 설계도서라 함은 도면, 시방서, 설계 기준서 등을 말한다)와 함께 관련법령 또는 별도로 정한 규격에 의한 것을 제외하고는 모두 이 시방서에 준하여 적용 시공한다.
+3) 이 시방서에 명시되지 않는 사항은 국토교통부 제정 「건축기계설비공사 표준시방서(기계 부분)」(KCS 31), 입찰안내서 표준시방서를 기준하여 시공하며, 전기관련공사는 「건축설비 표준시방서(전기 부분)」을 기준하여 시공한다.
+
+1.4 적용 및 우선
+1) 본 시방서와 표준 시방이 상이할 경우는 본 시방이 우선한다.
+2) 본 시방과 도면이 상이할 경우에는 발주자의 해석에 의한다.
+3) 본 시방과 도면 및 표준시방에 표기된 공법, 자재의 재질 및 제품 등을 이행하기 불가능할 경우에는 필히 발주자에게 사유를 보고하고, 대안에 대한 승인을 득한 후에 시공에 임하여야 한다.
+
+1.5 이의
+본 시방에 의문이 있을 경우에는 발주자와 협의하여야 하며, 견해의 차이가 발생시 계약자는 발주자와 협의하여 결정한다.
+
+1.6 공정표
+계약자는 공사 착수 전에 공정표 및 공정 별 세부 공정표를 작성 제출하여 발주자의 승인을 받아야 한다.
+
+1.7 시공 계획서
+1) 계약자는 자재수급관계, 장비 사용, 기타 필요한 시공계획서를 상세하게 작성하여 공사 착수 전에 발주자의 승인을 받아야 한다.
+2) 시공 계획서에는 특히 중량물의 반입 설치 등 위험을 수반하는 공사에 대하여 공사 방법과 사용 장비에 대하여 명시하여야 한다.
+
+1.8 제작도와 시공도
+1) 계약자는 발주자가 제작 또는 시공상 필요하다고 인정하는 도면과 설계변경 및 경미한 변경으로 설계도상의 치수와 형상 등을 변경하여야 할 경우에는 발주자의 지시에 의하여 승인을 받은 후에 제작 및 시공을 하여야 한다.
+2) 주요 장비류는 제작 도면, 제작 공정표 및 기술 시방서 등을 제작 전에 제출하여 발주자의 승인을 받아야 한다.
+
+1.9 기기와 재료
+1) 기기와 재료(기자재)는 KS 규격의 신품을 사용하여야 하며, KS가 없는 품목에 대하여는 공인 규격품 또는 KS 규격에 준하여 만들어진 최상품이어야 한다.
+2) 본 공사에 사용되는 주요 기자재는 시방서, 설명서, 견본 등의 기술자료를 구비하여 발주자에게 제출하여 승인을 받아야 한다.
+3) 기자재의 검사는 원칙적으로 품목마다 선정하여 실시하며, 검사 재료는 발주자가 지시하는 규격으로 하여야 한다.
+4) 검사에 불합격한 품목은 즉시 현장 외로 반출하여야 하며, 만일 부득이한 경우에는 발주자에게 그 사유를 반출 예정일과 함께 제출하여 승인을 받아야 한다.
+5) 향후 보수 관리를 위해 동종, 동일 제품에 있어서는 규격의 통일 및 단일화를 이루어야 한다.
+
+1.10 시험 및 검사
+1) 시험 및 검사의 방법은 관계법규, 한국산업규격(KS)에 따르며, 기타 적용기준이 있을 때에는 그것에 따른다.
+2) 주요 장비 및 기기에 대하여는 공인기관의 시험 성적서를 제출하여야 하며 공인기관의 시험을 제외한 시험은 발주자의 입회 하에 시행한다.
+3) 공정 중 공사시방서에 명시된 대로 필요한 단계에서 반드시 기기, 재료, 시공에 대한 시험 및 검사를 행한다. 다만, 제조회사 등의 시험성적서 및 검사증 등에 의하여 인정된 것 또는 발주자가 승인하는 경미한 사항에 대하여는 시험 및 검사를 생략할 수 있다.
+
+1.11 물품의 제작
+1) 계약자는 도면, 시방서 및 한국산업규격(KS), 관련법규를 적용하여 물품을 제작하되 현장 전기 및 설비시스템을 확인하여 적합하게 제작하여야 한다.
+2) 제작 도면의 승인
+   (1) 설치 현장을 사전 조사하여 제작 도면, 기기사양서, 제작공정표를 발주자에게 제출하여 승인을 받아야 한다.
+   (2) 도면 승인에 따라 제작된 경우라 하더라도 현장여건에 적합하지 아니한 경우에는 다시 제작하여야 한다.
+3) 자재검사
+   (1) 사용할 자재 중 주요 자재는 발주자의 승인을 득한 후 사용한다.
+   (2) 견본 및 시험 성적서를 제출하여야 한다.
+4) 안전사고 방지: 물품의 현장 반입 시 안전사고 방지책을 강구하여야 하며 사고발생을 미연에 방지하여야 한다.
+5) 시운전: 설치 완료 후 시운전을 하여 이상이 없어야 하며, 관리요원에게 기술교육을 실시한다.
+6) 준공도 제출: 설치완료 후 제작 도면 및 운전정비점검 지침서를 제출하여야 한다.
+7) 예비품 제공: 장비의 보수 관리에 필요한 예비품 및 전용 수공구를 납품하여야 한다.
+8) 시험 및 검사
+   (1) 시험 및 검사는 KS 및 관련규정에 의하여 시행하고 시험기관의 성적서를 제출하여야 한다.
+   (2) 시험 및 검사에 소요되는 비용은 계약자가 부담한다.
+
+1.12 시공의 입회와 검사
+1) 은폐, 매설되는 곳 또는 기능상 특이하게 사용되는 기재가 조립 설치되는 곳 등은 발주자의 입회 하에 시공하여야 하며, 동시에 사진(천연색)을 촬영 제출하여야 한다.
+2) 전항 외에 시공 후 검사가 불가능하거나 곤란한 공사 또는 여러 개의 기재를 조립 설치하는 경우에는 검사를 받아야 한다.
+3) 시운전(분야별 및 종합)은 발주자의 입회 하에 실시하여야 한다.
+4) 시공검사는 각각의 공정 별로 받아야 하며, 검사에 필요한 모든 준비사항은 발주자와 사전에 상의하여야 한다.
+5) 검사방법 및 기준은 각 공사의 해당사항에 따른다.
+
+1.13 시공 기준 및 타 공사와의 관련사항
+1) 공사의 시공은 본 공사 시방서와 설계도서 및 관련 제반법규를 준용하여야 함은 물론, 발주자의 지시에 따라 시공하여야 한다.
+2) 설계도서(시방서 포함)에 나타난 기능을 완전히 발휘하도록 계약자는 충분히 검토 후에 시공하여야 한다.
+3) 본 공사 중 건축, 전기공사 등 타 분야와 관련이 있는 부분의 공사는 충분한 사전 협의를 한 후에 시공하여 시공 부분의 누락이 없도록 하여야 하며 본 공사로 인하여 타공사 공정에 차질이 없어야 함은 물론 타공사에 하자가 발생하지 않도록 하여야 한다.
+4) 바닥, 벽 등 모든 건축물에 구멍을 뚫을 경우에는 발주자와 협의하여 건축 구조물에 영향이 없음을 확인한 후에 공사를 진행하여야 한다.
+5) 타 공사와 관련되는 공기 취출구와 천장의 점검구의 형식 및 설치는 천장 마감 계획에 맞춰 시공도를 작성하고 발주자의 승인을 받은 후 시공에 착수한다.
+
+1.14 관공서 및 대외기관 수속
+1) 계약자는 공사를 위한 허가수속 및 신고사항과 준공 후 건물이용에 필요한 허가수속 및 신고사항 일체를 시행하여야 한다.
+2) 허가수속 완료 후 관공서 및 기타기관에서 발행된 서류일체를 발주자에게 제출하여야 한다.
+
+1.15 공장 현장관리
+1) 공사현장 관리는 관계법규에 따라 이행하여야 한다.
+2) 계약자는 노무자 및 기타인의 출입을 감독하고, 노무자의 풍기 위생의 단속, 화재, 도난, 인명피해, 위험물취급, 사고방지, 산재 등의 안전사고 방지에 특히 유의하여야 한다.
+3) 시공 도중 시공으로 인한 소음, 진동, 기타 일체의 공해로 상해가 발생하지 않도록 하여야 한다.
+4) 작업장소에는 반드시 소화기(3㎏ 이상)를 2개 이상 배치하고 작업하여야 한다.
+
+1.16 공사 보고 및 승인
+계약자는 공사의 진도, 인력 취업상태, 재료의 반입 및 출고, 각종 검사, 기타 필요한 사항을 기재한 공정 보고서를 작성하여 발주자에게 제출하여야 하며, 이외 발주자가 필요하다고 인정하는 서류에 대해서도 제출하여야 한다.
+
+1.17 행정 서류 제출
+계약자는 아래와 같이 서류를 제출하여야 한다.
+1) 공사보고서
+2) 배관 수압시험 보고서
+3) 덕트 기밀시험 보고서
+4) 각종 장비 시험성적서
+5) 시운전 조정 종합보고서
+6) 기타 필요한 서류
+
+1.18 공사의 기록사진 제출
+공사의 진행 중 또는 준공 후 은폐될 부분, 보수 관리에 주의를 요하는 부분, 외부로부터 확인이 곤란한 부분이나 기타 발주자가 필요하다고 인정하는 부분은 천연색 사진을 촬영하여 일시, 공사명, 장소 등을 기입한 사진첩을 제출하여야 한다.
+
+1.19 설계변경
+1) 설계변경은 원칙적으로 계약조건에 준하여 발주자의 승인을 득한 경우가 아니고는 계약자 임의로 실시할 수 없다.
+2) 설계변경 시에는 발주자가 요청하는 구비서류를 제출하여야 한다.
+
+1.20 경미한 변경
+공사도중 현장사정, 기타 관계로 기기 및 자재의 설치위치, 설치공법, 배관, 덕트 등의 설치위치를 변경하고자 할 경우에는 그 사유를 발주자에게 제출하고 발주자의 승인을 득한 후 시공한다.
+
+1.21 시설물 및 공사의 관리
+1) 계약자는 발주자로부터 인수받은 각종 기자재에 대하여 오손, 파손, 변질, 분실 등을 방지하기 위하여 계약자 부담으로 철저히 관리하여야 하며 관리의 미비로 인한 제반 각종 손해에 대하여는 계약자가 보상한다.
+2) 시공 도중이나 공사가 완료된 부분의 각종 기기류 및 시설물은 오손, 변질, 분실 등을 방지하기 위하여 계약자 부담으로 철저히 관리하여야 하며, 관리의 미비로 인한 제반 각종 손해에 대하여서는 계약자가 보상한다.
+
+1.22 청소와 뒷정리
+1) 보온을 요하는 배관, 덕트 및 장비에 대해서는 보온 시공 전에 녹, 플라스터, 먼지 등을 청소하여야 한다.
+2) 도장을 할 배관, 덕트, 탱크류 등은 와이어 브러쉬로 녹, 플라스터를 제거하고, 먼지 등은 깨끗한 걸레로 닦은 후 페인트가 벗겨진 부분은 같은 색으로 도장하고, 그 표면이 광택이 나도록 하여야 한다.
+3) 현장에서 시공 도중 발생하는 모든 쓰레기와 각종 폐품 등은 계약자 부담으로 즉시 현장 외로 운반 처리하여야 하며 항상 작업장의 환경정리를 철저히 한다.
+
+1.23 시운전 및 조정
+1) 계약자는 모든 배관공사를 완료한 후 시운전을 실시하기 이전에 관내의 이물질을 제거하고 원활한 기능을 보장하기 위하여 전 배관내의 물의 퇴수를 2회 이상 실시하여야 한다.
+2) 계약자는 모든 배관계통에 시운전을 완료한 후 스트레이너 내부의 필터를 청소해야 한다.
+3) 계약자는 모든 덕트계통의 시운전을 실시하기 이전에 내부의 먼지 등 이물질을 완전 제거한 후에 송풍기를 가동하여야 하며, 시운전을 완료한 후에는 각종 필터를 청소 완료하여야 한다.
+4) 냉난방 공조계통에 대한 각각의 설비를 설치 완료하고 종합적인 시운전 및 조정을 실시하고, TAB를 수행하여야 하며, TAB 수행 전 계획서를 작성하여 제출하여야 한다.
+
+1.24 기타사항
+1) 공사 시공에 따르는 일반적인 사항 및 공통사항에 대하여는 본 공사시방서 외에 건축공사 시방서에 따른다.
+2) 계약자가 본 공사에 특허권을 사용하는 일이 있을 시에는 모두 계약자가 책임을 지고 처리한다.`
+        },
+        {
+          id: "equip_install",
+          name: "기기 설치 공사 (일반)",
+          content: `기기 설치 공사 (일반사항)
+
+1. 일반사항
+본 사항은 기계설비의 모든 기기류에 해당되는 일반사항으로서 자재시방과 함께 적용한다.
+
+1.1 기본 사항
+(1) 기기 설치 전 발주자에게 작업 계획서를 제출하고 충분히 협의한 후 설치한다.
+(2) 모든 기기는 설치 장소를 미리 점검하고 필요한 준비 작업을 한 후에 설치하며 설치 전 또는 설치 후 하자가 발생 시에는 계약자 부담으로 보수 혹은 교체한다.
+(3) 모든 압력 용기는 KS 또는 ASME Section VIII 표준에 따라 설계, 제작 및 테스트 되어야 한다.
+(4) 리프팅 러그는 필요할 경우 조립, 설치 또는 관리를 위하여 HVAC 계통의 모든 무거운 설비에 제공하여야 한다.
+(5) 장비의 최대 소음 레벨은 모든 장비의 표면으로부터 수평으로 1m 거리, 장비가 설치된 바닥에서 수직으로 1.5m 거리에서 85 dBA를 초과해서는 안 된다.
+
+1.2 설치작업의 주의사항
+(1) 기기를 달아 올릴 때와 달아 내릴 때에는 무게 중심위치에 주의하여 본체의 정도나 기능을 유지할 수 없을 정도의 변형을 주지 않은 상태에서 작업을 행한다.
+(2) 기기가 소속하는 공정계의 촉매 특성을 해치거나, 내부 유체의 포말 현상의 원인이 될 수 있는 유해한 먼지, 녹, 기름 등의 침입방지와 제거 대책 및 이들이 없는 것을 확인한다.
+
+2. 일반 설치 요령
+2.1 기초 설치면의 처리
+(1) 기초 콘크리트의 설치면은 모든 기름, 기타 이물을 완전 제거한다.
+(2) 가설 중심 정렬용의 수평블럭, 잭, 가설 라이너 등은 평활하며 해당 접촉면이 잘 맞도록 한다.
+(3) 몰탈면은 제거시키지 않고 수평판 또는 설치용 라이너를 기초 콘크리트에 직접 설치할 때에는 접촉면을 정리하여 평행판 또는 라이너와 콘크리트를 서로 맞비벼 잘 맞도록 한다.
+(4) 몰탈 패드형 라이너 설치방식의 경우는 기초 표면을 정리하여 몰탈 받침이 기초 표면과 잘 부착하도록 한다.
+(5) 그라우팅을 행할 기초 표면은 그라우팅재가 기초와 잘 밀착하여 균일, 박리 등이 일어나지 않도록 충분히 표면 처리를 행하여 평활하게 한다.
+
+2.2 라이너 배열과 기기의 가 설치
+(1) 기기 바닥면과 설치용 라이너의 그라우트와 접촉하는 부분, 또는 그라우트와 접촉하는 기초표면은 유지 기타의 이물을 제거한다.
+(2) 라이너 상면의 평행수준은 후의 조정을 위하여 설치높이 보다 약간 낮게 배열한다.
+(3) 시멘트 몰탈 패드를 기초위에 설치할 경우는 기초표면에 물을 뿌려 촉촉하게 한다.
+
+2.3 모형판(Template) 및 기초 볼트의 고정
+(1) 모형판 및 기초 볼트는 유지, 녹 등의 이물을 충분히 제거한다. 단, 기초 볼트의 나사부는 녹을 제거하고 윤활유 등의 부식 방지제를 도포한 후 먼지나 기타의 이물이 부착되지 않도록 덮개를 하여야 한다.
+(2) 가설 중심 정렬 후 앵커박스에 콘크리트 또는 몰탈을 다져 넣을 때는 기초 볼트 구멍에 이물이 없음을 확인하고, 바닥에 물이 고이지 않을 정도로 충분히 물을 뿌린 후 행한다.
+(3) 몰탈은 봉으로 충분히 다지면서 기초 볼트가 기울거나 지지물의 볼트 구멍 중심에서 벗어나지 않도록 행한다.
+(4) 몰탈 시공 및 양생은 온도가 5℃ 이상으로 유지되도록 보호하고 하중, 충격의 영향을 받지 않도록 양생한다.
+(5) 기초 볼트의 체결은 몰탈 경화시간이 충분히 경과한 후, 중심 정렬을 행한 후 편중 체결이 되지 않도록 전체를 균일하게 한다.
+
+2.4 설치면의 그라우팅
+(1) 중심 정렬 후 그라우팅을 할 기초 표면에 유지 기타의 이물이 없음을 확인한 후 물을 뿌려 축축하게 하여 그라우팅한다.
+(2) 그라우팅부에 배수관이 매설될 경우에는 후판지 등을 감아서 양생시켜 놓는다.
+(3) 기기의 바닥면과 기초와의 사이에 몰탈을 충입시킬 필요가 있을 경우에는 충분히 쳐 넣는다.
+
+3. 몰탈 시공상 주의
+(1) 보통 시멘트 몰탈의 혼합 및 충진은 5℃ 이상에서 행한다.
+(2) 무수축 시멘트 몰탈의 혼합 및 충진은 10~30℃에 행한다.
+(3) 무수축 시멘트 몰탈 혼합을 시킬 때에는 믹서로 행하고 소요수량의 70% 정도를 먼저 하고, 잔량을 추가하면서 좋은 유동 상태로 한다.
+(4) 무수축 시멘트 몰탈 혼합은 개시 후 30분 이내에 목적하는 곳에 충진을 완료한다. 또한 주입 몰탈은 필요 이상으로 진동기 등으로 진동시키지 말아야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 2. 공조·냉난방기기
+    // ============================================================
+    {
+      id: "aircon",
+      name: "공조·냉난방기기",
+      items: [
+        {
+          id: "pac",
+          name: "PAC (패키지 에어컨)",
+          content: `PAC (패키지형 공기조화기) 설치 공사
+
+1. 일반사항
+1.1 적용범위
+항온 항습기 및 패키지 에어컨은 송풍기, 압축기, 증발기, 공랭식 콘덴서, 가열코일, 가습장치, 공기 필터 및 케이싱 그리고 공기 혼합부분, 기타 부속부분 등으로 구성되며, 냉각 및 감습, 가열, 가습 등의 기능을 발휘하는 것으로 한다. 또한 공기 여과기를 갖추어 공기 중의 먼지를 제거시키며 옥내에 설치되는 것을 감안하여 진동, 소음 처리를 충분히 하여 소정의 능력을 발휘하는 것으로 한다.
+
+1.2 관련 규격
+(1) KS B 6369 : 패키지형 공기조화기 시험방법
+(2) KS C 9306 : 패키지형 에어컨디셔너
+(3) KS B 6141 : 환기용 공기필터 유닛
+(4) 고압가스 안전관리법
+(5) 에너지이용합리화법
+
+2. 자재
+2.1 기기 성능
+(1) 냉·난방 능력은 설계도면에 표기된 용량 이상의 제품을 사용하여야 한다.
+(2) 에너지소비효율등급 1등급 또는 2등급 이상의 제품을 사용하여야 한다.
+(3) KS C 9306(패키지형 에어컨디셔너) 기준에 적합한 제품을 사용하여야 한다.
+(4) 냉매 배관의 최대 허용 길이 및 고저차는 제조사 사양을 준수하여야 한다.
+(5) 장비의 최대 소음 레벨은 장비 표면으로부터 수평으로 1m 거리, 장비가 설치된 바닥에서 수직으로 1.5m 거리에서 85 dBA를 초과해서는 안 된다.
+
+2.2 냉매
+(1) 냉매는 친환경 냉매(R-410A, R-32 또는 동급 이상)를 사용하여야 한다.
+(2) 냉매 충전량은 제조사 사양에 따른다.
+
+2.3 실내기
+(1) 형식: 도면에 지정된 형식(천장카세트형, 천장매립덕트형, 벽걸이형 등)으로 설치하여야 한다.
+(2) 바디 프레임은 최소 3mm 두께의 채널 또는 벤트 프로파일이어야 하고 외부 패널은 최소 1.2mm 두께의 강판이어야 한다.
+(3) 케이싱의 단열은 공기 흐름으로 파이버글래스가 흩어지는 것을 방지하기 위하여 비가연 코팅 및 글래스 커버와 함께 25mm 이상의 파이버 글래스를 사용하여야 한다.
+(4) 증발기는 KS에 따라 솔기 없는 구리 또는 구리 합금 튜브의 크로스 핀 튜브 방식이어야 한다.
+(5) 풍량 조절: 자동 및 수동 풍량 조절 기능을 갖추어야 한다.
+(6) 필터: 쉽게 탈착 가능한 세척형 필터를 설치하여야 한다.
+(7) 드레인 팬: 내식성 재질로 하며, 드레인 펌프 내장 또는 자연낙수 방식으로 한다.
+(8) 장비의 모터는 전폐형(Totally-Enclosed Type) 및 전천후 방말형(Weather Proof)이어야 한다.
+(9) 전기 가열 코일은 방의 조건에 따라 순차적으로 제어되어야 한다.
+(10) 장비의 제어반, 현장 스위치가 제공되어야 한다.
+
+2.4 실외기
+(1) 설치 위치는 도면에 준하되, 통풍 및 소음을 고려하여 설치하여야 한다.
+(2) 실외기 상부 1,500mm 이내에 장애물이 없는 곳에 설치하며 장애물이 있는 경우 협의에 의해 설치위치의 변경 또는 별도의 후드를 설치할 수 있도록 한다.
+(3) 강력한 전자기장을 발생시키는 물체에서 최소한 3m는 이격하여 설치한다.
+(4) 방진가대 위에 설치하며, 고정 볼트로 견고히 고정하여야 한다.
+(5) 우수 침입 방지 조치를 하여야 한다.
+
+3. 시공
+3.1 일반사항
+(1) 기기 설치 전 발주자에게 작업 계획서를 제출하고 충분히 협의한 후 설치한다.
+(2) 설치위치는 도면에 의하며 설치 작업 전에 제작자의 설치 시방 및 설치도면을 충분히 검토한 뒤 설치하여야 한다.
+(3) 기기의 운반 시 충격이 가해지지 않도록 하여야 하며, 손상되지 않도록 보호하여야 한다.
+(4) 진동방지를 위한 방진재는 제작자의 사양에 따라 설치하며, 설치 전에 발주자의 검사를 받아야 한다.
+(5) 기초는 설치되는 기기 제작자 측 시방에 따른다.
+(6) 본체와 덕트와의 접속은 반드시 불연성 캔바스 이음 또는 신축이음을 사용한다.
+(7) 접속되는 배관이나 덕트 및 부속설비는 운전에 지장을 주지 않도록 하여야 하며 그 하중이 직접 패키지 에어컨에 걸리지 않도록 충분히 지지되어야 한다.
+
+3.2 실내기 설치
+(1) 흡입구, 토출구 부근에 공기의 흐름을 방해하는 장애물이 없고 냉풍 또는 온풍이 방 전체에 고르게 퍼져 나갈 수 있는 장소에 설치되어야 한다.
+(2) 천장에 설치하는 실내기의 경우 실내기 중량의 4배 이상의 하중을 견딜 수 있는 장소에 설치되어야 한다.
+(3) 천장 슬래브 또는 구조체에 인서트 볼트로 견고히 고정하여야 한다.
+(4) 수평계를 이용하여 수평으로 설치되었는지 반드시 확인하여야 한다.
+(5) 드레인 배관은 1/50~1/100의 구배로 설치하고, 공동 드레인에 비해 반드시 수직 입상관을 원칙으로 한다.
+(6) 드레인 펌프를 장착한 실내기의 경우 도면에 명시된 높이의 범위 안에서 드레인 배관을 상향으로 설치할 수 있어야 한다.
+
+3.3 실외기 설치
+(1) 방진패드 또는 방진가대 위에 설치하여야 한다.
+(2) 앵커볼트로 견고히 고정하여야 한다.
+(3) 실외기 상호 간섭에 의한 영향이 생기지 않도록 도면에 명기된 적정거리를 유지하여 설치한다.
+(4) 규정된 배관길이 및 실외기와 실내기간 허용 높이 내에서 설치되어야 한다. 실외기와 실내기간 거리 및 높이차가 허용치 이상일 경우 장비의 성능에 문제가 없도록 압축기 사양변경 또는 추가적인 조치를 취한다.
+(5) 배관 관통부 우레탄폼 및 마감재로 처리하여야 한다.
+
+3.4 냉매 배관
+(1) 냉매 배관의 재질은 인탈산 재질의 99.8% 이상의 순동관을 사용하여야 한다.
+(2) 냉매 배관의 시공은 내부에 이물질 및 수분이 없어야 하며, 2.94 MPa의 내압에 견뎌야 한다.
+(3) 배관 이음은 용접(납땜) 접합으로 하며, 질소 봉입 후 브레이징하여야 한다.
+(4) 보온재는 두께 20mm 이상의 발포폴리에틸렌(PE폼)을 사용하여야 한다.
+
+3.5 드레인 배관
+(1) 드레인 배관 재질은 도면에 준하며 일반적으로 PVC 관을 사용한다.
+(2) 원활한 응축수의 배출을 위하여 1/50~1/100의 구배로 설치하여야 한다.
+(3) 적정구간별로 드레인 배관에는 벤트를 설치할 수 있도록 한다.
+
+4. 시험 및 검사
+(1) 패키지형 공기조화기는 KS B 6369(패키지형 공기조화기 시험방법)에 의한 시험 및 검사를 한다.
+(2) 공기냉각 및 가열코일은 제작 후 공장에서 사용압력에 의한 공기압력 시험을 한다. 직접팽창 코일, 냉매가열코일은 고압가스 안전관리법의 규정에 따르며, 직접팽창코일은 시험 후 진공 건조시키고 필요에 따라서는 질소가스를 넣고 밀봉시킨다.
+(3) 기밀시험: 질소가스 가압 후 24시간 이상 압력 유지 확인 (시험압력 4.0MPa 이상)
+(4) 진공시험: 500micron 이하 진공도 확인
+(5) 공기여과기는 소정의 풍량에 있어서 분진포집율의 압력손실, 분진수용용량 등에 대한 시험 및 검사를 KS B 6141(환기용 공기필터 유닛)에 의해 실시한다.
+(6) 발주자는 설치 후 도면대로 작업했는가를 검사하고 운전상태, 진동상태, 소음 등 기타 성능을 검사한다.
+(7) 계약자는 기기의 시운전에 필요한 모든 사항을 준비하여 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(8) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다. 시운전에 불합격 시 계약자는 즉각 결함 부분을 시정하여 재 시운전을 시행하여야 한다.
+(9) 풍량, 정압, 냉방능력 등의 성능 시험은 발주자 입회 하에 행한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "sac",
+          name: "SAC (시스템 에어컨)",
+          content: `SAC (시스템 멀티 에어컨) 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 1대의 실외기에 복수의 실내기를 연결하는 멀티형 시스템 에어컨(VRF 포함)의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS B 6369 : 패키지형 공기조화기 시험방법
+(2) KS B 6141 : 환기용 공기필터 유닛
+(3) 고압가스 안전관리법
+
+2. 자재
+2.1 시스템 구성
+(1) 실외기 1대에 연결 가능한 실내기 대수 및 용량은 설계도면을 준수하여야 한다.
+(2) 동시 운전율 및 배관 길이는 제조사 사양을 준수하여야 한다.
+(3) 각 실내기 독립 제어 기능을 갖추어야 한다.
+(4) 에너지 절약형 인버터 방식을 원칙으로 한다.
+
+2.2 실내기 형식
+(1) 도면에 지정된 형식으로 설치하여야 한다. (카세트형, 덕트형, 벽걸이형 등)
+(2) PAC 시방서의 실내기 관련 사항을 준용한다.
+
+2.3 제어 시스템
+(1) 개별 리모컨 또는 중앙집중식 컨트롤러를 설치하여야 한다.
+(2) 스케줄 운전 기능을 갖추어야 한다.
+(3) 에너지 모니터링 기능(선택)을 적용할 수 있다.
+
+3. 시공
+3.1 일반사항
+PAC 시방서 시공 일반사항을 준용한다.
+
+3.2 냉매 배관
+(1) 분기 헤더 또는 분기 키트를 사용하여 배관을 분기하여야 한다.
+(2) 분기 후 각 실내기까지 균등한 냉매 분배가 이루어지도록 하여야 한다.
+(3) 배관 구배는 제조사 지침을 준수하여야 한다.
+(4) 냉매 배관 재질 및 보온은 PAC 시방서를 준용한다.
+
+3.3 드레인 배관
+(1) 각 실내기 드레인은 독립 또는 합류하여 배수 처리하여야 한다.
+(2) 역구배 금지, 1/50~1/100 이상 구배를 확보하여야 한다.
+
+4. 시험 및 검사
+(1) 기밀시험 및 진공시험은 PAC 시방서를 준용한다.
+(2) 전체 실내기 동시 운전 및 개별 운전 시험을 실시하여야 한다.
+(3) 공기여과기는 KS B 6141에 의해 시험 및 검사를 실시한다.
+(4) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(5) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "ehp",
+          name: "EHP (히트펌프)",
+          content: `EHP (전기식 히트펌프) 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 전기식 히트펌프(EHP)의 설치에 적용한다. 냉난방 겸용 히트펌프로서 인버터 방식을 원칙으로 한다.
+
+1.2 관련 규격
+(1) KS B 6369 : 패키지형 공기조화기 시험방법
+(2) 에너지이용합리화법
+(3) 고압가스 안전관리법
+
+2. 자재
+2.1 기기 성능
+(1) 냉방 COP: 3.0 이상 (냉방 에너지효율)
+(2) 난방 COP: 3.5 이상 (난방 에너지효율)
+(3) 저온 난방 성능: 외기 -15℃에서도 난방 운전이 가능한 제품을 사용하여야 한다.
+(4) 에너지소비효율등급 1등급 이상의 제품을 사용하여야 한다.
+(5) 장비의 최대 소음 레벨은 장비 표면으로부터 수평으로 1m 거리에서 85 dBA를 초과해서는 안 된다.
+
+2.2 제상 기능
+(1) 자동 제상 기능이 내장된 제품을 사용하여야 한다.
+(2) 제상 시 실내 온도 유지 기능을 갖추어야 한다.
+
+2.3 냉매
+(1) 친환경 냉매(R-410A, R-32 또는 동급)를 사용하여야 한다.
+
+3. 시공
+3.1 실외기 설치
+(1) 통풍이 양호한 위치에 설치하여야 하며, 벽면과 이격거리를 준수하여야 한다.
+(2) 방진가대 위에 설치하고 앵커볼트로 견고히 고정하여야 한다.
+(3) 동절기 제상 배수를 위한 드레인 처리를 하여야 한다.
+(4) 실외기 상부 1,500mm 이내에 장애물이 없는 곳에 설치하여야 한다.
+
+3.2 냉매 배관 시공
+(1) PAC 냉매 배관 시공을 준용한다.
+(2) 배관 보온을 철저히 시공하여야 한다.
+
+3.3 전기 배선
+(1) 실내·외기 간 연결 전선은 제조사 지정 규격을 준수하여야 한다.
+(2) 접지 공사를 실시하여야 한다.
+(3) 전용 회로 및 누전차단기를 설치하여야 한다.
+
+4. 시험 및 검사
+(1) PAC 시방서의 시험 및 검사를 준용한다.
+(2) 냉난방 각 운전 모드 시험을 실시하여야 한다.
+(3) 제상 운전 동작 확인을 실시하여야 한다.
+(4) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "doas",
+          name: "DOAS (전외기 공조기)",
+          content: `DOAS (Dedicated Outdoor Air System) 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 외기 전량을 도입하여 처리하는 전외기 공조 시스템(DOAS)의 설치에 적용한다. DOAS는 환기 및 제습 기능을 전담하며, 각 실의 냉난방은 별도 시스템으로 처리한다.
+
+1.2 관련 규격
+(1) KCS 31 25 15 : 공기조화기 설치
+(2) 건축물의 설비기준 등에 관한 규칙
+(3) 실내공기질 관리법
+
+2. 자재
+2.1 기기 성능
+(1) 처리 외기량은 설계도면을 준수하여야 한다.
+(2) 에너지 회수형(전열교환기 내장 또는 별도) 방식을 적용하여야 한다.
+(3) 냉각 코일: 외기 노점까지 냉각 가능한 용량이어야 한다.
+(4) 가열 코일: 동절기 예열 및 재열 기능을 갖추어야 한다.
+(5) 필터: MERV 13 이상(PM2.5 대응)을 적용하여야 한다.
+(6) 장비의 최대 소음 레벨은 85 dBA를 초과해서는 안 된다.
+
+2.2 케이싱
+(1) 단열 이중 패널 구조로 하여야 한다. (열교 방지)
+(2) 내부식성 재질 또는 내식 도장 처리를 하여야 한다.
+(3) 각 챔버별 점검 패널을 설치하여야 한다.
+
+2.3 열교환 코일
+(1) 냉각 코일, 가열 코일: 동관+알루미늄 핀 코일 방식으로 하여야 한다.
+(2) 코일 표면 풍속: 2.5m/s 이하로 하여야 한다.
+(3) 드레인 팬: 스테인리스 또는 FRP 재질로 하여야 한다.
+
+2.4 팬
+(1) 에어포일 익형 또는 백워드 커브드 팬으로 하여야 한다.
+(2) 인버터 구동 방식(VVVF)을 원칙으로 하여야 한다.
+(3) 방진 마운팅을 적용하여야 한다.
+(4) 팬의 흡입 측과 토출 측에는 플렉시블 이음을 설치하며 재질은 불연성 캔바스로 한다.
+
+2.5 필터
+(1) 사전 필터: 25~30% 효율 이상(계수법)
+(2) 중·고성능 필터: MERV 13 이상
+
+3. 시공
+3.1 설치
+(1) 기계실 또는 옥상에 설치하며, 방진가대 위에 설치하여야 한다.
+(2) 외기 취입구에 방충망 및 루버를 설치하여야 한다.
+(3) 배기구는 외기 취입구와 최대한 이격 설치하여야 한다.
+(4) 코일 배관 연결부는 플렉시블 연결을 하여야 한다.
+(5) 점검 패널 접근 공간을 확보하여야 한다.
+
+3.2 덕트 연결
+(1) 외기 덕트, 급기 덕트, 배기 덕트, 환기 덕트를 각각 구분하여 시공하여야 한다.
+(2) 연결부를 기밀 처리하여야 한다.
+(3) 방화구획 관통 시 방화댐퍼를 설치하여야 한다.
+
+3.3 드레인 배관
+(1) 트랩을 설치하여야 한다. (정압 고려한 깊이)
+(2) 1/100 이상의 구배를 확보하여야 한다.
+
+4. 시험 및 검사
+(1) 풍량 측정 및 조정(TAB)을 실시하여야 한다. (설계 풍량의 ±10% 이내)
+(2) 열교환 효율을 측정하여야 한다.
+(3) 기밀 시험을 실시하여야 한다.
+(4) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(5) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "erv",
+          name: "전열교환기",
+          content: `전열교환기 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 실내 배기 열을 회수하여 도입 외기를 예냉·예열하는 전열교환기의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS B 6879 : 열회수형 환기장치
+(2) 건축물의 설비기준 등에 관한 규칙 (환기설비 기준)
+(3) 실내공기질 관리법
+
+2. 자재
+2.1 기기 성능
+(1) 전열교환 효율: 70% 이상 (냉방 기준)
+(2) 현열교환 효율: 80% 이상
+(3) 처리 풍량: 설계도면을 준수하여야 한다.
+(4) 소음: NC-35 이하
+(5) KS B 6879(열회수형 환기장치) 기준에 적합한 제품을 사용하여야 한다.
+
+2.2 교환 소자
+(1) 전열 소자: 습기 투과성 재질(종이, 고분자막 등)을 사용하여야 한다.
+(2) 항균·방곰팡이 처리 제품을 사용하여야 한다.
+(3) 소자 탈착 및 청소 가능한 구조이어야 한다.
+
+2.3 필터
+(1) 급기 측: PM2.5 대응 필터를 설치하여야 한다.
+(2) 배기 측: 조필터를 설치하여야 한다.
+(3) 필터 교환 주기는 제조사 권장 사항에 따른다.
+
+2.4 케이싱
+(1) 아연도 강판 또는 동등 이상의 내식성 재질로 하여야 한다.
+(2) 내부 단열 처리를 하여야 한다.
+(3) 점검 패널은 쉽게 탈착 가능한 구조로 하여야 한다.
+
+3. 시공
+3.1 설치
+(1) 천장 내 또는 기계실에 방진 행거로 설치하여야 한다.
+(2) 점검구를 확보하여야 한다. (소자 교환 및 필터 청소를 위한 접근 가능)
+(3) 드레인 팬 및 배수 처리를 하여야 한다. (1/100 이상 구배)
+(4) 수평 설치를 원칙으로 하여야 한다.
+
+3.2 덕트 연결
+(1) 급기·배기·외기·환기 4개 포트를 명확히 구분하여야 한다.
+(2) 역방향 연결을 금지한다.
+(3) 각 포트 연결부는 플렉시블 덕트를 사용하여 진동을 차단하여야 한다.
+(4) 외기 도입구 및 배기구에 방충망을 설치하여야 한다.
+
+4. 시험 및 검사
+(1) 풍량 및 정압을 측정하여야 한다. (설계 풍량의 ±10% 이내)
+(2) 교환 효율을 측정하여야 한다. (제조사 성적서 확인)
+(3) 소음을 측정하여야 한다. (NC-35 이하)
+(4) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(5) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "ahu",
+          name: "공조기 (AHU)",
+          content: `공조기 (Air Handling Unit) 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 공기조화기(AHU)의 제작, 설치에 적용한다. 형식은 도면에 지정된 형식(수평형, 수직형 등)으로 한다.
+
+1.2 관련 규격
+(1) KCS 31 25 15 : 공기조화기 설치
+(2) KS B 6331 : 송풍기 시험방법
+(3) KS B 6141 : 환기용 공기필터 유닛
+
+2. 자재
+2.1 케이싱
+(1) 이중 패널 구조로 하여야 한다. (판두께 1.0mm 이상의 아연도 강판)
+(2) 단열재를 충진하여야 한다. (두께 50mm 이상, 글라스울 또는 우레탄폼)
+(3) 열교 방지 구조이어야 한다.
+(4) 각 챔버별 점검 패널을 설치하여야 한다.
+
+2.2 열교환 코일
+(1) 냉수 코일, 온수 코일: 동관+알루미늄 핀 코일 방식으로 하여야 한다.
+(2) 코일 표면 풍속: 2.5m/s 이하로 하여야 한다.
+(3) 드레인 팬: 스테인리스 또는 FRP 재질로 하여야 한다.
+(4) 코일 전후 풍압 측정 포트를 설치하여야 한다.
+
+2.3 팬
+(1) 형식: 에어포일 익형 또는 백워드 커브드 팬으로 하여야 한다.
+(2) 평형 시험기에 의하여 정적평형과 동적평형이 잘 조정된 것으로서 운전 시에 소음과 진동이 적고 소정의 성능을 갖는 것으로 한다.
+(3) 인버터 구동 방식(VVVF)을 원칙으로 하여야 한다.
+(4) 방진 마운팅을 적용하여야 한다.
+(5) 팬의 흡입 측과 토출 측에는 플렉시블 이음을 설치하며 재질은 불연성 캔바스로 한다.
+(6) 장비의 모터는 전폐형(Totally-Enclosed Type)이어야 한다.
+
+2.4 필터
+(1) 사전 필터: 25~30% 효율(계수법)
+(2) 중성능 필터: 60~65% 효율 이상
+(3) 필터 전후 압력 강하 측정 포트를 설치하여야 한다.
+
+2.5 기타 부속품
+(1) 온도 센서, 풍속 센서 부착 위치를 확보하여야 한다.
+(2) 외기 댐퍼, 환기 댐퍼, 배기 댐퍼를 설치하여야 한다. (해당 시)
+(3) 송풍기 흡입 챔버에는 유지관리를 위해 점검문(400×500mm)을 설치하여야 한다.
+
+3. 시공
+3.1 설치
+(1) 방진가대 위에 설치하고 앵커볼트로 고정하여야 한다.
+(2) 코일 배관 연결부는 플렉시블 연결을 하여야 한다.
+(3) 점검 패널 접근 공간을 확보하여야 한다. (각 면 최소 600mm 이상)
+(4) 기초 콘크리트의 설치면은 모든 기름, 기타 이물을 완전 제거하여야 한다.
+(5) 설치 전 발주자에게 작업 계획서를 제출하고 충분히 협의한 후 설치한다.
+
+3.2 드레인 배관
+(1) 트랩을 설치하여야 한다. (정압 고려한 깊이)
+(2) 1/100 이상의 구배를 확보하여야 한다.
+
+4. 시험 및 검사
+(1) 송풍기는 KS B 6331(송풍기 시험방법)에 의한 시험과 검사를 한다.
+(2) 풍량 및 정압을 측정하여야 한다. (설계 풍량의 ±10% 이내)
+(3) 온도·습도 제어 성능 시험을 실시하여야 한다.
+(4) 소음을 측정하여야 한다. (지정 NC값 이하)
+(5) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(6) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "unit_heater",
+          name: "유니트 히터",
+          content: `유니트 히터 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 증기 또는 전기를 열원으로 하는 유니트 히터(Unit Heater)의 설치에 적용한다.
+
+2. 자재
+2.1 기기 구성
+유니트 히터는 증기 가열 코일, 프로펠러 팬, 공기 배출구, 배출 밸브, 배출창, 회수 그릴 및 설치를 위한 기초를 포함한 전기적 출구에 연결된 플러그가 있는 전기 리드 와이어 등으로 구성된다.
+
+2.2 팬
+본 시방서에서 특별한 설명이 없는 한 유니트 히터는 바람을 불어내는 프로펠러 방식의 팬으로 동적 및 정적으로 균형이 맞아야 한다.
+
+2.3 코일
+코일은 구리 튜브에 기계적으로 접착된 플레이트 형식의 알루미늄 핀으로 구성되어야 한다.
+
+2.4 제어
+(1) 유니트 히터는 온도 스위치와 온·오프 수동 스위치가 유닛에 제공되어야 한다.
+(2) 유니트 히터는 수평 토출, Wall Mounted Type으로 증기 및 전기에 의해 가열한다.
+
+2.5 케이싱
+최하 1.2mm 두께의 용융 아연도금 강판(SGCC, KS D3506)으로 하며 표면처리 및 방청 처리하고 소부용 에나멜을 사용하여 미려한 외장 및 녹 등 부식 방지에 철저를 기한다.
+
+3. 시공
+3.1 설치
+(1) 설치위치는 도면에 의하며, 설치 작업 전에 제작자의 설치 시방 및 설치도면을 충분히 검토한 뒤 설치하여야 한다.
+(2) 유니트 히터의 설치는 설치 요구사항에 따라 수평이나 수직으로 조절 가능하여야 한다.
+(3) 제작자의 표준시방에 따라 제작, 설치한 경우 발주자에 의해 승인된 검사 요령서에 따라야 한다.
+(4) 증기 배관 연결 시 응축수 트랩을 설치하여야 한다.
+(5) 배관 및 전기 연결은 운전에 지장을 주지 않도록 하여야 한다.
+
+4. 시험 및 검사
+(1) 설치 후 도면과의 일치 여부를 검사하고 운전상태, 진동상태, 소음 등 기타 성능을 검사한다.
+(2) 계약자는 기기의 시운전에 필요한 모든 사항을 준비하여 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(3) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "radiator",
+          name: "라디에이터",
+          content: `라디에이터 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 증기 또는 온수를 이용한 라디에이터(Radiator)의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS D 6759 : 주철제 방열기
+(2) KS D 6772 : 알루미늄 방열기
+(3) KS B 6405 : 방열기용 앵글밸브
+(4) KS B 6403 : 저압용 라디에이터 트랩
+
+2. 자재
+2.1 라디에이터 본체
+(1) 라디에이터는 KS D 6759 및 KS D 6772에 따라 설계, 제작되어야 하고 핀은 충분히 플레이트 내부로 삽입되어야 한다.
+(2) 라디에이터는 알루미늄으로 만들어져야 한다.
+(3) 라디에이터는 표면이 매끈하고 상처가 없이 모양이 좋아야 한다.
+
+2.2 부속품
+(1) 앵글밸브: KS B 6405에 따라야 하고 크롬 도금 및 플라스틱 핸들 마감이어야 한다.
+(2) 공기벤트를 설치하여야 한다.
+(3) 라디에이터 트랩: KS B 6403에 따라야 하고 공기의 배출은 쉽게 작동할 수 있어야 한다.
+
+3. 시공
+3.1 설치
+(1) 라디에이터는 바닥에 설치할 수 있도록 지지대와 함께 제공되어야 한다.
+(2) 설치위치는 도면에 의하며, 실내 공기 순환이 원활한 위치에 설치하여야 한다.
+(3) 벽면과의 이격거리: 전면 300mm 이상, 측면 50mm 이상을 확보하여야 한다.
+(4) 배관 연결 시 신축 이음을 적용하여 온도 변화에 의한 팽창을 고려하여야 한다.
+
+4. 시험 및 검사
+(1) 설치 후 도면과의 일치 여부를 검사하고 운전상태를 검사한다.
+(2) 통수 시험을 실시하여 누수 여부를 확인하여야 한다.
+(3) 앵글밸브, 공기벤트, 라디에이터 트랩의 동작 상태를 확인하여야 한다.
+(4) 시운전 시 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 3. 환기기기
+    // ============================================================
+    {
+      id: "ventilation",
+      name: "환기기기",
+      items: [
+        {
+          id: "inline_fan",
+          name: "인라인덕트팬",
+          content: `인라인덕트팬 설치 공사 (송풍기류)
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 덕트 내에 삽입 설치하는 인라인덕트팬(Inline Duct Fan)의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS B 6331 : 송풍기 시험방법
+(2) KCS 31 25 15 : 공기조화기 설치
+(3) 건축물의 설비기준 등에 관한 규칙
+
+2. 자재
+2.1 기기 성능
+(1) 풍량 및 정압: 설계도면 기준 이상의 제품을 사용하여야 한다.
+(2) 형식: 원심형 또는 축류형으로 도면에 지정된 것으로 한다.
+(3) 소음: NC-35 이하(주거용), NC-40 이하(공용·상업용)
+(4) 평형 시험기에 의하여 정적평형과 동적평형이 잘 조정된 것으로서 운전 시에 소음과 진동이 적고 소정의 성능을 갖는 것으로 한다.
+(5) DC 모터 또는 EC 모터 적용을 권장한다.
+
+2.2 본체
+(1) 케이싱: 아연도 강판 또는 내식 처리 강판으로 하여야 한다.
+(2) 임펠러: 알루미늄 합금 또는 수지제로 정적 밸런스를 조정한 것으로 하여야 한다.
+(3) 캐스팅은 강판이거나 동등한 자재이어야 하고 변형과 진동을 견딜 수 있을만큼 충분한 강도를 가지고 있어야 한다. 캐스팅은 공기의 누출을 방지하고 설치나 작동 중 문제가 발생하지 않도록 접촉 부위를 용접이나 리벳팅으로 강화해야 한다.
+(4) 임펠러는 강판이거나 동등한 자재로 필요한 강도를 갖고 있어야 하고 작동 중 변형을 방지하기 위하여 정확한 곡면과 충분한 강도를 갖고 있어야 한다.
+(5) 블레이드는 외부의 조건에 견딜 수 있어야 하고 불연성이어야 한다.
+(6) 모터: 외부 공기 냉각형 또는 내부 통기형으로 하여야 한다.
+(7) 연결 플랜지: 설치 덕트 치수에 맞는 규격으로 하여야 한다.
+(8) 배터리실 등 특수 환경 배기팬은 내산재(Acid Proof Material)를 사용하여야 한다.
+
+2.3 부속품
+(1) 방진 행거: 고무 방진형으로 하여야 한다.
+(2) 플렉시블 덕트 커넥터: 흡입·토출 양측에 불연성 캔바스 재질로 설치하여야 한다.
+
+3. 시공
+3.1 설치 전 유의사항
+(1) 팬은 연속적으로 안전하게 사용하도록 제작되어야 하고 정적/동적으로 균형이 맞아야 한다.
+(2) 팬은 느슨해지는 것과 같은 전기적/기계적인 문제 없이 충분히 내구성이 있어야 하고 세척, 설치 및 분해가 용이해야 한다.
+(3) 팬은 진동이 건물의 벽으로 전달되지 않도록 설계도에 지정한 위치에 설치되어야 한다.
+
+3.2 설치
+(1) 천장 슬래브 또는 구조체에 방진 행거로 설치하여야 한다.
+(2) 수평 설치를 원칙으로 한다. (모터 보호를 위함)
+(3) 천장 걸이형일 때에는 송풍기의 운전 중량에 충분히 견딜 수 있는 구조와 강도를 가진 형강재 가대 또는 앵커볼트를 건물의 구조체에 견고히 고정시키고 송풍기를 설치한다.
+(4) 흡입 측 및 토출 측은 플렉시블 연결로 진동을 차단하여야 한다.
+(5) 점검구를 설치하여야 한다. (팬 전후 300mm 이내 점검 가능)
+(6) 최소 직관부 확보: 흡입 측 덕트 직경의 3배 이상
+(7) 진동방지를 위한 방진재는 제작자의 표준 사양에 따라서 설치한다.
+
+3.3 배선
+(1) 모터 정격 전류에 맞는 배선 규격을 적용하여야 한다.
+(2) 기동·정지 스위치 설치 위치는 도면을 준수하여야 한다.
+(3) 접지 공사를 실시하여야 한다.
+
+4. 시험 및 검사
+(1) 송풍기는 KS B 6331(송풍기 시험방법)에 의한 시험과 검사를 한다.
+(2) 회전 방향을 확인하여야 한다. (정방향 확인)
+(3) 풍량을 측정하여야 한다. (설계 풍량의 ±10% 이내)
+(4) 운전 전류를 측정하여야 한다. (정격 전류 이내)
+(5) 소음을 측정하여야 한다.
+(6) 진동 상태를 확인하여야 한다.
+(7) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(8) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다. 시운전에 불합격 시 계약자는 즉각 결함 부분을 시정하여 재 시운전을 시행하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장을 하여야 하며, 반드시 시운전 후 시행한다.`
+        },
+        {
+          id: "ceiling_fan",
+          name: "천정형팬",
+          content: `천정형 환기팬 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 천장에 설치하는 환기팬(욕실팬, 화장실팬, 주방 레인지후드 팬 등)의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS C 9301 : 환풍기
+(2) 건축물의 설비기준 등에 관한 규칙
+
+2. 자재
+2.1 기기 성능
+(1) 풍량: 설계도면 기준 이상의 제품을 사용하여야 한다.
+(2) 소음: NC-30 이하(주거용 욕실, 화장실), NC-35 이하(공용)
+(3) KS C 9301(환풍기) 기준에 적합한 제품을 사용하여야 한다.
+(4) 에너지 절약형 DC 모터 또는 EC 모터 적용을 권장한다.
+
+2.2 본체
+(1) 케이싱: ABS 수지 또는 아연도 강판으로 하여야 한다.
+(2) 임펠러: 축류형(욕실, 화장실), 원심형(주방) 방식으로 하여야 한다.
+(3) 역류 방지용 자동 개폐 셔터를 내장하여야 한다.
+(4) 모터: 밀폐형 방습형으로 하여야 한다.
+(5) 연결 덕트 접속부는 기밀 처리가 가능한 구조이어야 한다.
+
+3. 시공
+3.1 설치
+(1) 천장 마감재에 매립 또는 노출 설치하여야 한다.
+(2) 모터 하중 지지: 천장 구조체에 직접 고정하여야 한다. (천장 마감재 단독 고정 금지)
+(3) 덕트 연결부는 기밀 테이프로 처리하여야 한다.
+(4) 수평 설치 여부를 확인하여야 한다.
+
+3.2 덕트 연결
+(1) 배기 덕트는 외부로 직접 배출되도록 하여야 한다.
+(2) 덕트 굴곡은 최소화하여야 한다.
+(3) 외부 배기구에는 우수 침입 방지 후드를 설치하여야 한다.
+
+4. 시험 및 검사
+(1) 풍량을 확인하여야 한다.
+(2) 셔터 작동 상태를 확인하여야 한다.
+(3) 소음을 확인하여야 한다.
+(4) 역류 방지 기능을 확인하여야 한다.
+(5) 시운전 시 발주자의 입회 하에 시운전을 시행하여야 한다.`
+        },
+        {
+          id: "wall_fan",
+          name: "벽부형팬",
+          content: `벽부형 환기팬 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 벽체에 설치하는 환기팬의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS C 9301 : 환풍기
+(2) 건축물의 설비기준 등에 관한 규칙
+
+2. 자재
+2.1 기기 성능
+(1) 풍량 및 정압: 설계도면 기준 이상의 제품을 사용하여야 한다.
+(2) 형식: 축류형 프로펠러 팬으로 하여야 한다.
+(3) 방수 등급: IPX4 이상(외기와 접하는 위치)
+(4) 소음: 지정 NC값 이하
+
+2.2 본체
+(1) 외부 후드: 빗물 침입 방지 루버 또는 후드를 설치하여야 한다.
+(2) 역류 방지 셔터를 내장하여야 한다.
+(3) 방충망을 설치하여야 한다.
+(4) 케이싱: 내식성 재질 또는 방청 처리를 하여야 한다.
+
+3. 시공
+3.1 설치
+(1) 벽 관통부는 방수 처리를 하여야 한다. (우레탄 코킹)
+(2) 외부 후드 기울기는 빗물 배수 방향을 고려하여야 한다.
+(3) 앵커볼트로 견고히 고정하여야 한다.
+(4) 관통부 슬리브 설치 후 내화충전재로 처리하여야 한다. (방화구획 관통 시)
+
+3.2 전기 배선
+(1) 방수형 전기 배선을 사용하여야 한다.
+(2) 접지 공사를 실시하여야 한다.
+
+4. 시험 및 검사
+(1) 회전 방향을 확인하여야 한다. (배기 방향)
+(2) 셔터 작동 상태를 확인하여야 한다.
+(3) 방수 처리 상태를 확인하여야 한다.
+(4) 시운전 시 발주자의 입회 하에 시운전을 시행하여야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 4. 열원·위생기기
+    // ============================================================
+    {
+      id: "heatingsource",
+      name: "열원·위생기기",
+      items: [
+        {
+          id: "elec_waterheater",
+          name: "전기온수기",
+          content: `전기온수기 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 전기 히터를 이용한 저탕식 전기온수기의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS C 9303 : 전기 온수기
+(2) 전기사업법 및 전기설비기술기준
+(3) 에너지이용합리화법
+
+2. 자재
+2.1 기기 성능
+(1) 용량: 설계도면 기준으로 한다.
+(2) 최고 설정 온도: 75℃ 이상이어야 한다.
+(3) 보온 성능: 1시간당 온도 저하 0.5℃ 이내이어야 한다.
+(4) KS C 9303(전기 온수기) 기준에 적합한 제품을 사용하여야 한다.
+
+2.2 본체
+(1) 탱크 재질: 내부 법랑 처리 또는 스테인리스강(STS 304 이상)으로 하여야 한다.
+(2) 외부: 포맥스 또는 도장 강판으로 하여야 한다.
+(3) 단열재: 발포 폴리우레탄(두께 40mm 이상)을 사용하여야 한다.
+
+2.3 안전장치
+(1) 과열방지장치를 설치하여야 한다.
+(2) 압력방출밸브를 설치하여야 한다. (설정압력 이상 시 자동 방출)
+(3) 역류방지밸브를 설치하여야 한다.
+(4) 온도 및 압력 게이지를 설치하여야 한다.
+
+3. 시공
+3.1 설치
+(1) 전용 앵커 또는 브라켓으로 벽면에 견고히 고정하여야 한다.
+(2) 수평·수직 설치를 준수하여야 한다. (도면 지정 방식에 따름)
+(3) 압력방출밸브 배수관: 바닥 배수구까지 배관하여야 한다. (최소 구배 확보)
+(4) 유지관리를 위한 접근 공간을 확보하여야 한다.
+
+3.2 배관 연결
+(1) 급수 연결: 역류방지밸브 및 지수밸브를 설치하여야 한다.
+(2) 급탕 연결: 필요 시 온도·압력 게이지를 설치하여야 한다.
+(3) 드레인 밸브를 설치하여야 한다.
+
+3.3 전기 연결
+(1) 전용 회로 및 누전차단기를 설치하여야 한다.
+(2) 접지 공사를 실시하여야 한다.
+(3) 방수형 콘센트 또는 직접 배선으로 시공하여야 한다.
+
+4. 시험 및 검사
+(1) 누수 시험(수압 시험)을 실시하여야 한다.
+(2) 온도 설정 및 과열방지 동작을 확인하여야 한다.
+(3) 압력방출밸브 동작을 확인하여야 한다.
+(4) 전기 안전 검사를 실시하여야 한다.
+(5) 시운전 시 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.`
+        },
+        {
+          id: "elec_boiler",
+          name: "전기보일러",
+          content: `전기보일러 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 전기를 열원으로 하는 전기보일러의 설치에 적용한다.
+
+1.2 관련 규격
+(1) 에너지이용합리화법 (보일러 검사 기준)
+(2) KS B 6205 : 보일러 압력용기 기준
+(3) 전기사업법 및 전기설비기술기준
+
+2. 자재
+2.1 기기 성능
+(1) 가열 용량: 설계도면 기준(kW)
+(2) 최고 사용 압력: 0.3MPa 이상
+(3) 제어 방식: 인버터 또는 단계별 출력 제어
+(4) 모든 압력 용기는 KS 또는 ASME Section VIII 표준에 따라 설계, 제작 및 테스트 되어야 한다.
+
+2.2 본체
+(1) 본체: 내압 용기 구조로 하며, 압력용기 안전기준에 적합하여야 한다.
+(2) 팽창탱크: 밀폐형(시스템 용량에 맞는 용량)으로 하여야 한다.
+(3) 단열재: 50mm 두께 이상의 울 매트 또는 동등 이상으로 단열하고 0.8mm 두께의 컬러 시트로 마무리하여야 한다.
+
+2.3 안전장치
+(1) 안전밸브를 설치하여야 한다.
+(2) 과열방지기를 설치하여야 한다.
+(3) 압력계를 설치하여야 한다.
+(4) 온도계를 설치하여야 한다.
+(5) 수위계를 설치하여야 한다.
+
+2.4 부속기기
+(1) 순환 펌프: 내장 또는 별치
+(2) 팽창탱크
+(3) 온도 센서 및 제어밸브
+(4) 온도 및 압력 게이지, 릴리프 밸브
+
+3. 시공
+3.1 설치
+(1) 기계실 또는 지정 장소에 방진가대 위 설치하여야 한다.
+(2) 기초 설치면은 콘크리트를 친 후 10일 이내에는 하중이 가해지지 않도록 하여야 한다.
+(3) 보일러 주위 유지관리 공간을 확보하여야 한다. (최소 600mm 이상)
+(4) 안전밸브 방출관: 안전한 위치까지 배관하여야 한다.
+
+3.2 배관 연결
+(1) 난방 공급·환수 배관을 연결하여야 한다.
+(2) 보충수 배관을 연결하여야 한다. (급수 연결, 볼탭 설치)
+(3) 팽창관 및 안전밸브 방출관을 처리하여야 한다.
+(4) 연결 배관은 그 중량이 직접 보일러에 걸리지 않도록 충분히 지지하여야 한다.
+
+4. 시험 및 검사
+(1) 수압 시험: 최고 사용 압력의 1.5배로 실시하여야 한다.
+(2) 운전 시험: 온도 설정, 안전장치 동작을 확인하여야 한다.
+(3) 전기 안전 검사를 실시하여야 한다.
+(4) 에너지이용합리화법에 따른 검사를 수행하고 검사 확인서를 제출하여야 한다.
+(5) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        },
+        {
+          id: "cooling_tower",
+          name: "냉각탑",
+          content: `냉각탑 설치 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 냉각수를 냉각하는 냉각탑(쿨링타워)의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 35 10 : 냉각탑 설치
+(2) 수질 및 수생태계 보전에 관한 법률
+(3) 레지오넬라균 예방 지침 (보건복지부)
+
+2. 자재
+2.1 기기 성능
+(1) 냉각 능력: 설계도면 기준(RT 또는 kW)이어야 한다.
+(2) 입구 수온/출구 수온/외기 습구온도: 설계도면 기준에 따른다.
+(3) 형식: 카운터플로우 밀폐형 또는 개방형(도면 지정)으로 한다.
+(4) 장비의 최대 소음 레벨은 장비 표면으로부터 1m 거리에서 85 dBA를 초과해서는 안 된다.
+
+2.2 본체
+(1) 외부 케이싱: FRP 또는 용융아연도금 강판으로 하여야 한다.
+(2) 충진재(필): 폴리염화비닐(PVC) 또는 폴리프로필렌(PP)으로 하여야 한다.
+(3) 팬: 저소음 축류형 팬으로 FRP 또는 알루미늄 합금으로 하여야 한다.
+(4) 수조: 보강 FRP 또는 스테인리스강(STS 304)으로 하여야 한다.
+(5) 비산 방지판을 설치하여야 한다.
+
+2.3 부속기기
+(1) 볼탭 또는 전자식 수위조절 밸브를 설치하여야 한다.
+(2) 블로우다운 밸브를 설치하여야 한다.
+(3) 방진가대를 설치하여야 한다.
+(4) 오버플로우 배관을 설치하여야 한다.
+
+3. 시공
+3.1 설치 전 유의사항
+(1) 냉각탑을 설치하기 전에 설치방향, 기초의 기준선, 기초볼트, Lifting Lug, 용접상태 및 외관을 검사하여 합격한 제품으로 설치하여야 한다.
+(2) 운반 과정에서 손상 발생 유무를 확인하고 연결배관 등을 사전에 충분히 검토한 후 설치하여야 한다.
+
+3.2 설치
+(1) 방진가대 위에 설치하고 레벨을 조정하여야 한다.
+(2) 외기 취입 및 배기 방향을 고려하여 위치를 선정하여야 한다.
+(3) 동결 방지: 보온 또는 전열선을 설치하여야 한다. (필요 시)
+(4) 탱크 기초의 수평오차는 3mm 이내로 하여야 한다.
+(5) 연결 배관은 그 중량이 직접 냉각탑에 걸리지 않도록 충분히 지지하여야 한다.
+
+3.3 배관 연결
+(1) 냉각수 공급·환수 배관을 연결하여야 한다.
+(2) 보충수 배관을 연결하여야 한다.
+(3) 드레인 및 오버플로우 배관을 연결하여야 한다.
+
+4. 시험 및 검사
+(1) 수조 누수 시험을 실시하여야 한다.
+(2) 탱크의 수압시험은 설계압력의 1.5배 이상으로 실시하여야 한다.
+(3) 냉각 성능 시험(수온 측정)을 실시하여야 한다.
+(4) 소음을 측정하여야 한다.
+(5) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(6) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 하며 반드시 시운전 후 시행해야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 5. 배관·기계실
+    // ============================================================
+    {
+      id: "plumbing_mech",
+      name: "배관·기계실",
+      items: [
+        {
+          id: "pump",
+          name: "급수펌프",
+          content: `급수펌프 설치 공사 (펌프류)
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 급수 가압 펌프, 냉온수 순환 펌프 및 냉각수 순환 펌프 등의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 35 25 : 펌프 설치
+(2) KS B 6301 : 원심 펌프, 사류 펌프 및 축류 펌프
+(3) 수도법
+
+2. 자재
+2.1 기기 성능
+(1) 양정 및 유량: 설계도면 기준이어야 한다.
+(2) 효율: 70% 이상(설계 운전점)이어야 한다.
+(3) 형식: 인라인형 또는 횡형 원심 펌프로 한다.
+(4) 장비의 최대 소음 레벨은 장비 표면으로부터 1m 거리에서 85 dBA를 초과해서는 안 된다.
+
+2.2 본체
+(1) 케이싱: 주철 또는 스테인리스강(급수용)으로 하여야 한다.
+(2) 임펠러: 청동 또는 스테인리스강으로 하여야 한다.
+(3) 축 봉: 메카니칼 씰 방식으로 하여야 한다.
+(4) 모터: VVVF 인버터 구동 방식(에너지 절약)을 원칙으로 하여야 한다.
+(5) 제작 시의 변형 및 부정형 등이 없고 충분한 강도를 가지며 적정한 베어링을 사용한다.
+
+2.3 부속기기
+(1) 흡입 측: 버터플라이 밸브, Y형 스트레이너를 설치하여야 한다.
+(2) 토출 측: 체크밸브, 게이트 밸브, 압력계를 설치하여야 한다.
+(3) 방진가대 또는 방진 커플링을 설치하여야 한다.
+
+3. 시공
+3.1 설치 전 유의사항
+펌프를 설치하기 전에 운반 과정에서 손상 발생 유무를 확인하고 케이싱, 베어링, 급유, 전동기부, 기초볼트 위치, 배관 위치 등을 사전에 충분히 검토한다.
+
+3.2 설치
+(1) 펌프 설치 공사의 순서는 다음과 같이 한다.
+    가. 설치면의 처리를 행한다.
+    나. 설치용 라이너를 정렬한다.
+    다. 가대를 라이너 위에 가설치하고 기초볼트를 끼운다.
+    라. 가대의 중심 조정을 한다.
+    마. 몰탈을 앵커 박스에 채운다.
+    바. 몰탈 경화 후 기초 볼트를 조인다.
+    사. 펌프 및 전동기를 기초 위에 얹어 놓고 기초 볼트를 꽉 조여 펌프를 조정한다.
+    아. 그라우팅을 한다.
+    자. 펌프 및 전동기의 중심 정렬을 점검하고 배관이 끝난 후 축을 연결한다.
+(2) 기초 설치면은 콘크리트를 친 후 10일 이내에는 하중이 가해지지 않도록 한다.
+(3) 펌프의 기초는 진동에 대하여 안전하도록 정확하게 설치한다. 표면은 몰탈 바르기로 하고 설치면은 수평으로 마감하여 기기의 기초볼트와 기초 구멍과 정확하게 설치한다.
+(4) 진동방지를 위한 방진장치 설치 시는 제작자의 표준사양에 따라서 설치한다.
+(5) 가대 및 펌프의 중심 조정은 높이, 위치 및 수평도에 대해 규격에 명시된 허용오차 내에 들도록 행한다.
+(6) 수평조정은 최소한 가대의 네 모서리(축방향과 축직각방향)에서 행한다.
+(7) 펌프와 몰탈의 수평은 쐐기에 의하여 조정한 다음 토출 및 흡입 측 플랜지의 수평도, 수직도를 검사한다. 최종적으로 축 커플링 중심선의 이상 유무를 확인하면서 쐐기를 빼고 라이너로 고정시켜 가며, 볼트를 체결한다.
+(8) 특히 회전체이므로 휨 모멘트나 비틀림 모멘트를 받지 않도록 주의한다.
+
+3.3 배관 연결
+(1) 흡입관: 에어포켓 방지를 위하여 상향 구배를 금지한다.
+(2) 플렉시블 이음: 흡입·토출 측 각 1개소를 설치하여야 한다.
+(3) 바이패스 배관을 설치하여야 한다. (유지관리용)
+(4) 드레인 밸브를 설치하여야 한다.
+(5) 펌프에 취부되는 배관과 부속품은 운전에 불편하지 않게 설치하며, 그 하중이 직접 펌프에 걸리지 않도록 지지한다.
+(6) 배관 작업 후에 무리한 외력이 없음을 확인하고 펌프의 축심 조정을 재 점검한다.
+
+4. 시험 및 검사
+(1) 전동기의 운전시험은 무부하로 행하며 전동기의 진동, 소음상태, 온도가 정상임을 확인한다.
+(2) 전동기의 운전시험 후에 펌프와 전동기의 회전방향을 확인하며 축을 연결한다.
+(3) 수압 시험을 실시하여야 한다.
+(4) 성능 시험: 양정, 유량, 전류를 측정하여야 한다.
+(5) 진동 및 소음을 측정하여야 한다.
+(6) 설치 후 도면과의 일치 여부를 검사하고 운전상태, 진동상태, 기타 소음 여부를 검사한다.
+(7) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(8) 시운전 시 계약자는 발주자 입회 하에 제작자와 시운전을 시행하고 그 결과 보고서를 제출한다. 시운전에 불합격 시 계약자는 즉각 결함 부분을 시정하여 재 시운전을 시행한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장을 하여야 하며 반드시 시운전 후 시행한다.`
+        },
+        {
+          id: "water_tank",
+          name: "저수조",
+          content: `저수조 설치 공사 (탱크류)
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 음료수용 저수조 및 잡용수 저수조의 설치에 적용한다.
+
+1.2 관련 규격
+(1) 수도법
+(2) 환경부 먹는물 수질기준
+(3) KCS 31 35 30 : 물탱크 설치
+
+2. 자재
+2.1 재질
+(1) 음료수용: 스테인리스강(STS 304 또는 STS 316L) 또는 FRP(식품위생법 적합 제품)로 하여야 한다.
+(2) 잡용수용: 강화 FRP 또는 RC 수조로 하여야 한다.
+(3) 내부 도장: 식품위생 안전 인증 제품을 사용하여야 한다. (음료수용)
+
+2.2 구조
+(1) 압력 용기에 해당하는 탱크는 에너지이용합리화법 및 관련 기준이 정하는 바에 따른다.
+(2) 사용 자재는 일반 구조용 압연강재의 2종(SB 41) 이상으로 하고, 형강의 모양 및 치수 등은 그 허용치에 따른다.
+(3) 형상의 패널, 지지재 등의 경우는 충분한 두께를 가져 수압에 견디고, 기밀성 및 수밀성을 충분히 확보할 수 있도록 한다. 또한 스테인리스 강판제의 조립에는 TIG 용접한다.
+(4) 상부 맨홀: 지름 600mm 이상, 잠금장치 및 벌레 침입 방지 구조로 하여야 한다.
+(5) 통기관: 벌레·먼지 침입 방지 방충망을 설치하여야 한다.
+(6) 만수·감수 경보 장치(전극봉 또는 플로트)를 설치하여야 한다.
+(7) 오버플로우 배관을 설치하여야 한다.
+(8) 드레인 밸브(청소용)를 설치하여야 한다.
+(9) 탱크 내부에 설치하는 사다리는 STS로 한다.
+(10) 탱크의 오버플로우관 및 통기관의 끝에는 내식성의 방충망을 부착한다.
+
+3. 시공
+3.1 설치 전 유의사항
+(1) 탱크류를 설치하기 전에 설치방향, 기초의 기준선, 기초볼트, Lifting Lug, 용접상태 및 외관을 검사하여 합격한 제품으로 설치하여야 한다.
+(2) 운반기기 및 기구들의 무게가 적합한가를 조사한다.
+(3) 운반 과정에서 손상 발생 유무를 확인하고 연결배관 등을 사전에 충분히 검토한 후 설치하여야 한다.
+
+3.2 설치
+(1) 내진 앵커로 고정하여야 한다. (지진 대비)
+(2) 주위 청소 공간을 확보하여야 한다. (최소 600mm)
+(3) 수조 하부: 방수 처리 및 배수 구배를 확보하여야 한다.
+(4) 탱크 기초의 수평오차는 3mm 이내로 하여야 한다.
+(5) Levelling은 최소한 Base의 네 모서리(또는 세 모서리) 축방향과 축직각방향에서 행해져야 한다.
+(6) 연결 배관은 그 중량이 직접 탱크에 걸리지 않도록 충분히 지지한다.
+(7) 지지재 등 탱크 내부에 설치하는 재료는 수질에 해를 주지 않는, 위생상 무해한 것으로 하고, 탱크의 청소 시에 불편하지 않도록 한다.
+
+3.3 배관 연결
+(1) 급수 인입: 볼탭 또는 전자식 밸브를 설치하여야 한다.
+(2) 급수 인출: 바닥에서 100mm 이상(침전물 방지)의 위치에서 횡인출하여야 한다.
+
+4. 시험 및 검사
+(1) 만수 시험: 24시간 이상 수위 유지를 확인하여야 한다.
+(2) 탱크의 수압시험은 설계압력의 1.5배 이상으로 실시하여야 한다.
+(3) 공기압 및 수압시험은 제작공장에서 실시할 수 있으며 발주자의 승인을 받은 후 시험 성적서를 제출하여야 한다.
+(4) 수질 검사를 실시하여야 한다. (음료수용)
+(5) 경보 장치 작동을 확인하여야 한다.
+(6) 계약자는 준공검사에 필요한 모든 사항을 준비하여 준공검사 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(7) 준공 검사 시 계약자는 발주자의 입회 하에 제작자와 검사를 시행하고 그 결과 보고서를 제출하여야 한다.
+
+5. 마감 도장
+설치 중에 훼손된 부분 및 미도장 부분은 재도장하여야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 6. 배관
+    // ============================================================
+    {
+      id: "piping",
+      name: "배관",
+      items: [
+        {
+          id: "piping_general",
+          name: "배관공사 (일반)",
+          content: `배관설비 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비 배관(급수, 급탕, 냉온수, 냉각수, 드레인 등) 공사에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 20 05 : 배관공사 일반
+(2) KS D 3507 : 배관용 탄소강 강관
+(3) KS D 3562 : 압력배관용 탄소강 강관
+(4) KS D 5301 : 이음매 없는 동 및 동합금관
+(5) KS M 3404 : 경질 폴리염화비닐관(PVC)
+(6) ASTM A312 : 스테인리스 강관
+(7) 수도법, 하수도법
+
+2. 자재
+2.1 배관 재질 및 규격
+(1) 본 시방서는 냉·난방 및 급·배수 위생설비 배관공사에 적용한다.
+(2) 각 설비에 사용하는 관류 및 규격은 다음표에 따른다.
+
+   구분                  | 규격                        | 비고
+   --------------------|-----------------------------|-----------
+   증기, 응축수 배관      | 압력배관용 탄소흑강관(KSD 3507) |
+   시수, 급탕, 환탕 배관  | 스테인리스 강관(ASTM A312 Gr.TP304 Sch.10) |
+   냉온수 배관            | 압력배관용 탄소강 강관(KS D 3562) |
+   오·배수, 통기, 폐수,   | 경질 염화비닐관(KSM 3404)    |
+   장비 배수관            | (PVC 파이프 VG1, VG2)        |
+
+2.2 관 이음쇠류
+(1) 스테인리스 강관은 용접 이음을 하며, 이종관과 접속할 때는 유니온 또는 플랜지를 사용한다.
+(2) 플랜지 연결을 위하여 3.2mm 두께의 비석면 가스켓이 사용되어야 한다.
+(3) 강관은 용접이음한다.
+(4) 강관배관 시공 시 Main 배관경에 비해 Branch 배관의 관경이 적은 경우 Tee의 용접개소에 Welding Fitting을 사용한다.
+(5) 경질염화비닐관은 접착제 이음을 한다.
+
+2.3 밸브류 및 부속품
+(1) 차단용: 게이트 밸브 또는 볼 밸브로 하여야 한다.
+(2) 유량 조절용: 글로브 밸브 또는 버터플라이 밸브로 하여야 한다.
+(3) 역류 방지용: 스윙형 또는 스프링형 체크 밸브로 하여야 한다.
+(4) 밸브 재질: 황동(DN50 이하), 주철 또는 주강(DN65 이상)으로 하여야 한다.
+(5) 냉수 배관에는 공기가 체류되어 물의 흐름을 저해하지 않도록 자동공기 배출 밸브를 설치하여 지장이 없도록 한다.
+
+2.4 관 지지철물 및 고정철물
+(1) 관은 신축, 동요 및 하중 등에 견딜 수 있는 것으로서 관경 또는 관의 재질에 적합하고 충분한 지지강도가 있는 구조의 것으로 하며 진동의 전달을 막을 필요가 있을 때에는 방진재가 붙은 것으로 한다.
+
+3. 시공
+3.1 일반사항
+(1) 배관의 위치는 다른 장비의 배관 및 배관의 기울기를 고려하여 배열해야 한다. 파이프 지지대와 슬리브의 고정은 정확한 작업 스케줄을 따라야 한다.
+(2) 파이프는 변형이 없이 수직으로 절단하여야 하고 솔기는 접히거나 깔쭉한 부분이 없어야 한다.
+(3) 이물질은 연결 시 파이프의 내부에서 제거되어야 하고 파이프는 설치작업을 중지 했을 때 들어가지 않도록 보호해야 한다.
+(4) 노출부분, 소음 방지가 필요한 부위 및 건축법, 소방법에 의한 방화구획 등은 법규에 적합한 불연 재료로 채워 넣는다.
+(5) 절연 키트는 상이한 자재의 파이프 연결에 사용되어야 한다.
+(6) 배관시공에 앞서 타 설비의 관류 및 기기와의 관련 사항을 상세히 검토하고 기울기를 고려하여 그 위치를 정확히 결정한다.
+(7) 관은 모두 관경을 축소시키지 않는 공구를 사용하여 관축에 대해 직각으로 절단하고 그 절단구는 관 내외에 뒤말림 및 거스러미 등이 없도록 평탄하고 매끄럽게 다듬질을 한다.
+(8) 배관의 시공 시 부식이 예상되는 부분에는 이종관의 전기절연, 방식 Tape 등을 사용하여 부식을 방지하도록 한다.
+(9) 관은 잇기 전에 그 내부를 점검하고 이물이 없는 것을 확인한 후에 접합한다. 배관 시공 중 및 시공을 일시 중단하는 경우 등에는 관내에 이물이 들어가지 않도록 잘 보호한다.
+(10) 방화구획 등을 관통하는 관은 그 틈새를 암면 보온재 또는 기타 불연재로 메운다.
+(11) 신축이음쇠를 설치한 배관에는 그 신축 부분을 기점으로 하여 유효한 곳에 고정철물을 설치한다.
+(12) 기기 주위의 배관은 기기의 조작, 점검, 보수용 여유를 확보함과 동시에 필요한 장소에 배관 분리용 플랜지 등을 설치한다.
+
+3.2 배관 지지철물 (공통사항)
+(1) 지지 고정
+    - 층간 변위 및 수평방향의 가속도에 대한 응력을 검토하고 필요할 때에는 좌굴응력에 대해서도 검토한다.
+    - 지지구간 내에서 관의 중간이 처지거나 진동이 발생하지 않도록 행거 또는 지지철물을 써서 적절한 간격으로 지지 고정한다.
+
+<배관지지 간격>
+   배관     | 적요          | 간격
+   --------|--------------|-------
+   수직관   | 강관          | 각 층에 1개소 이상
+            | PVC관 동관    | 각 층에 1개소 이상
+            | 스테인리스관  | 각 층에 1개소 이상
+   수평배관 | 강관 20mm 이하 | 1.8m 이내
+            | 강관 25~40mm  | 2.0m 이내
+            | 강관 50~80mm  | 3.0m 이내
+            | 강관 100~150mm | 4.0m 이내
+            | 강관 200mm 이상 | 5.0m 이내
+            | 스테인리스 20mm 이하 | 1.0m 이내
+            | 스테인리스 25~40mm | 1.5m 이내
+            | 스테인리스 50mm | 2.0m 이내
+            | 스테인리스 65~100mm | 2.5m 이내
+            | 스테인리스 125mm 이상 | 3.0m 이내
+            | PVC 16mm 이하 | 0.75m 이내
+            | PVC 20~40mm   | 1.0m 이내
+            | PVC 50mm      | 1.2m 이내
+            | PVC 65~125mm  | 1.5m 이내
+            | PVC 150mm 이상 | 2.0m 이내
+
+(2) 배관 지지철물
+    - 행거 및 수직관 지지철물은 관경에 적합한 제품으로서 내용물을 포함한 중량 및 관의 신축, 진동에 견딜 수 있는 충분한 강도인 것으로 하고, 진동의 전달을 막을 필요가 있을 때는 방진재가 붙은 것으로 한다.
+    - 관 고정철물은 배관의 신축에 따라 생기는 응력에 대하여 관이 어떤 방향으로도 움직이지 않는 강도를 가진 구조로 한다.
+    - 다수의 배관이 병렬로 놓여 있을 때에 사용되는 공통 지지철물은 배관 수에 적합한 형강 제품으로 하고 관내 용물과 피복의 중량을 지지하는데 충분한 강도를 가진 구조로 한다.
+    - 진동전달을 방지할 필요가 있는 곳에는 방진고무 등을 넣어 충분한 지지를 하여야 한다.
+
+3.3 배관의 기울기
+배관의 기울기는 관내의 공기 정체 및 배수를 고려하며 배관의 최소 구배는 다음과 같다.
+(1) 증기 및 응축수관: 순기울기 1/250 이상으로 한다.
+(2) 급수 및 급탕관: 순기울기 1/200 이상으로 한다.
+(3) 배수관: 관경 75mm 이하에서는 1/50 이상, 관경 100mm 이상에서는 1/100 이상으로 한다.
+(4) 통기관: 관내에 물방울이 고이지 않고 잘 흘러 내리도록 하며 역구배가 되지 않도록 배수관에 접속한다.
+
+4. 시험 및 검사
+(1) 모든 배관은 배관의 일부 또는 전 배관을 완료한 후 수압시험 및 만수 시험 등을 행한다. 방로 및 보온을 하는 배관, 은폐배관 또는 매설배관 등은 보온 및 매설 전에 시험한다.
+(2) 배관 시공 후에는 발주자의 입회 하에 수압시험 또는 내압시험을 행하고 기록을 제출한다.
+(3) 배관은 수압시험을 한 후에 동절기 동파를 방지하기 위해 철저히 퇴수시켜야 한다.
+
+<수압시험 기준>
+   구분       | 시험방법              | 최소압력   | 최소유지시간
+   ----------|---------------------|----------|----------
+   급수(직결)  | 수압시험             | 0.9MPa   | 60분
+   급수(고가)  | 수압시험             | 0.75MPa  | 60분
+   배수(건물내)| 만수시험             | 0.03MPa  | 30분
+   배수(대지)  | 기압시험             | 0.03MPa  | 15분`
+        },
+        {
+          id: "piping_hotwater",
+          name: "급탕배관",
+          content: `급탕배관 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 급탕 공급 및 순환 배관 공사에 적용한다.
+
+1.2 관련 규격
+(1) KS D 5301 : 이음매 없는 동 및 동합금관
+(2) KS D 3595 : 일반 배관용 스테인리스강 강관
+(3) 수도법
+
+2. 자재
+2.1 배관 재질
+(1) 동관: KS D 5301(이음매 없는 동 및 동합금관)을 사용하여야 한다.
+(2) 스테인리스 강관: KS D 3595를 사용하여야 한다.
+(3) 내열 수지관(가교 폴리에틸렌관, 폴리부틸렌관): KS M 3358 등에 적합한 것으로 하여야 한다.
+
+2.2 급탕 순환 펌프
+(1) 소용량 인라인 펌프를 사용하여야 한다.
+(2) 설정 온도 연동 자동 제어 기능을 갖추어야 한다.
+
+3. 시공
+3.1 급탕 배관
+(1) 급탕 공급관과 순환관을 분리 시공하여야 한다.
+(2) 최원거리 급탕 기구까지 신속한 급탕을 위하여 순환 시스템으로 시공하여야 한다.
+(3) 팽창에 의한 신축 대책을 강구하여야 한다.
+(4) 배관 지지 간격은 배관 공사(일반) 시방서를 준용한다.
+
+3.2 보온
+(1) 급탕관 전체 구간에 보온 시공을 하여야 한다. (보온 시방서 참조)
+(2) 보온재: 아티론 25mm 이상 + 포리마테이프 마감
+
+4. 시험 및 검사
+(1) 수압 시험을 실시하여야 한다. (급수 배관 준용, 최소 0.75MPa)
+(2) 급탕 도달 온도 및 도달 시간을 측정하여야 한다.
+(3) 배관 시공 후에는 발주자의 입회 하에 수압시험을 행하고 기록을 제출한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 7. 보온
+    // ============================================================
+    {
+      id: "insulation",
+      name: "보온",
+      items: [
+        {
+          id: "insulation_general",
+          name: "보온공사",
+          content: `보온공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 배관, 덕트, 기기류의 보온, 보냉 공사에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 20 05 : 보온공사
+(2) 건축물의 에너지절약 설계기준
+(3) 건축법 (불연재 기준)
+(4) 소방시설 설치 및 관리에 관한 법률
+
+2. 자재
+2.1 보온재 종류
+(1) 그라스울(유리섬유): 배관 및 덕트 외부 보온 (50K 이상)
+(2) 발포폴리에틸렌(PE폼, 아티론): 소구경 배관(냉수, 냉매, 급탕)
+(3) 우레탄폼: 냉수 배관, 냉동 배관
+(4) 록울(Rock Wool): 증기 배관, 응축수 배관
+(5) 아이소핑크(압출법 발포폴리스티렌): 공조기, 덕트 외부
+
+2.2 외장재
+(1) 알루미늄 재킷: 옥외 노출 배관, 기기 (두께 0.5mm 이상)
+(2) PVC 자켓: 실내 배관
+(3) 알루미늄 테이프: 이음부 처리
+(4) 포리마테이프: 소구경 배관 마감
+
+2.3 보온 두께 및 재질 기준
+(1) 배관 종류별 보온 규격
+
+   구분                | 보온재        | 두께
+   ------------------|--------------|------
+   증기 배관           | Rock Wool    |
+     관경 15~25mm     |              | 40t + 포리마테이프 마감
+     관경 32~65mm     |              | 50t + 포리마테이프 마감
+     관경 80~100mm    |              | 75t + 포리마테이프 마감
+   응축수 배관         | Rock Wool    |
+     관경 15~25mm     |              | 40t + 포리마테이프 마감
+     관경 32~65mm     |              | 50t + 포리마테이프 마감
+     관경 80~100mm    |              | 75t + 포리마테이프 마감
+   시수, 급탕, 환탕    | Artilon(PE폼)|
+     관경 15~65mm     |              | 25t + 포리마테이프 마감
+     관경 80~100mm    |              | 40t + 포리마테이프 마감
+   냉수 배관(DN50 이하) | PE폼         | 25mm 이상
+   냉수 배관(DN65 이상) | 우레탄폼     | 30mm 이상
+   냉매 배관           | PE폼         | 20mm 이상
+
+(2) 덕트의 보온
+    - 아티론 25t + 알루미늄 밴드 + 보온테이프
+    - 옥외 노출 덕트는 Color Sheet Casing 마감
+
+2.4 보온재 마감 색상
+(1) 증기, 응축수: 연적색
+(2) 시수: 청색
+(3) 급탕, 환탕: 분홍색
+
+3. 시공
+3.1 일반사항
+(1) 건축물의 방화구획, 방화벽, 기타 법규에 지정된 칸막이벽 또는 간격 등을 관이 관통하는 소요 부분에 대하여는 필요한 내화 성능을 갖는 불연 재료에 의하여 시공한다.
+(2) 내화 구조의 건축물에 있어서 불연공법이 요구되는 곳에는 불연재 또는 준 불연재 등 내화성이 있는 보온재, 외장재 및 보조재를 사용하여 시공하여야 한다.
+(3) 재료의 검사는 시공 착수 전에 시행하는 것을 원칙으로 하며, 두께 검사는 재료의 건조 후 바늘을 수직으로 찔러 측정한다.
+(4) 보온재의 이음 부분은 틈새가 없도록 시공하고 관 축방향의 이음선이 동일 선상에 있지 않도록 한다.
+(5) 결로가 예상되는 배관에 대하여는 방로 보온 시공을 하고 동결의 우려가 있는 배관은 동결방지 보온을 한다.
+(6) 수압 또는 기밀시험을 할 경우에는 시험이 끝난 후 보온 작업을 한다. 만일 시험 전에 보온 공사를 할 경우에는 연결 부분을 제외하고 하도록 한다.
+(7) 보온 공사를 할 목적으로 임시 가설된 구조물은 공사 후 반드시 제거한다.
+(8) 보온 전에 배관, 덕트 및 장비에 대해 녹, 플라스터, 먼지 등을 청소하여야 한다.
+
+3.2 배관 보온
+(1) 통형 보온재를 사용하여야 한다. (PE폼, 록울 세그먼트)
+(2) 지지 부분: 내하중 보온재를 삽입하거나 보호 커버를 설치하여야 한다.
+(3) 플랜지, 밸브류: 탈착 가능한 박스형 보온을 적용하여야 한다.
+(4) 이음부는 알루미늄 테이프 또는 포리마테이프로 처리하여야 한다.
+
+3.3 덕트 보온
+(1) 판상 보온재를 덕트 외면에 접착하여야 한다.
+(2) 이음부는 알루미늄 테이프로 처리하여야 한다.
+(3) 방화구획 관통부: 불연 보온재를 사용하여야 한다.
+
+3.4 보온을 요하지 않는 부분
+(1) 덕트: 외기 도입 덕트, 일반 배기용 덕트
+(2) 기기: 패키지형으로서 내부 보온이 된 기기, 외기 도입용·배기용 및 공조기 내의 송풍기
+(3) 배관, 밸브 및 플랜지: 배수관의 지중매설관 및 콘크리트 내 배관, 오·배수 배관 및 통기용 배관, 위생기구의 부속품 및 노출배관
+
+3.5 방화구획 관통 처리
+(1) 방화구획 관통 배관·덕트: 내화충전재 또는 방화댐퍼를 설치하여야 한다.
+(2) 불연재 또는 준불연재 보온재를 사용하여야 한다. (소방법 준수)
+
+4. 시험 및 검사
+(1) 두께를 측정하여야 한다. (테이프 게이지)
+(2) 결로 발생 여부를 확인하여야 한다. (냉수·냉매 배관)
+(3) 외장재 마감 상태를 확인하여야 한다.
+(4) 보온재 및 보조재는 견본을 제출하여 발주자의 승인을 받은 것으로 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 8. 덕트
+    // ============================================================
+    {
+      id: "duct",
+      name: "덕트",
+      items: [
+        {
+          id: "duct_general",
+          name: "덕트공사",
+          content: `덕트설비 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 공기조화 및 환기용 덕트 공사에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 25 30 : 덕트공사
+(2) KDS 31 25 30 : 덕트설비 설계기준
+(3) 건축물의 설비기준 등에 관한 규칙
+(4) 소방시설 설치 및 관리에 관한 법률
+
+2. 자재
+2.1 덕트용 재료
+(1) 덕트 공사에 사용되는 주 재료는 아연도금 철판으로 한다.
+(2) 아연도 철판은 KS D 3506의 1종(SBHG 1) 및 2종(SBHG 2)을 사용한다.
+(3) 리벳은 강리벳을 표준으로 한다.
+(4) 볼트 및 너트는 KS B 1002(6각 볼트) 및 KS B 1012(6각 너트)에 따른다.
+(5) 땜납은 원칙적으로 KS D 6704(땜납)을 따른다.
+(6) 주방 배기 덕트: 스테인리스강 STS 304, t=1.0mm 이상으로 하여야 한다.
+
+2.2 덕트의 판두께 및 접속
+(1) 장방형 덕트의 판두께는 다음표에 따른다. (단위: mm)
+
+   구분   | 덕트의 긴변         | 판 두께(아연도 강판)
+   ------|-------------------|------------------
+   각형덕트| 450 이하           | 0.5
+          | 450 초과 750 이하  | 0.6
+          | 750 초과 1,500 이하 | 0.8
+          | 1,500 초과 2,250 이하 | 1.0
+          | 2,250 초과         | 1.2
+
+(2) 덕트의 보강법: 장방형 덕트의 이음 간의 보강은 스탠딩 시임 공법 또는 형강으로 한다.
+
+2.3 덕트의 지지
+덕트의 행가는 아연도 철판으로 제작된 "C"형강을 사용한다. (단위: mm)
+
+   덕트 장변의 길이         | C 형강         | 봉강 | 최대간격
+   ----------------------|--------------|------|------
+   750 이하               | 25×25×3     | 9   | 3,000
+   750 초과 ~ 1,500 이하  | 30×30×3     | 9   | 3,000
+   1,500 초과 ~ 2,200 이하| 40×40×3     | 9   | 3,000
+   2,200 초과             | 40×40×5     | 9   | -
+
+2.4 흡음 재료
+흡음 재료는 다음의 제 조건을 만족하는 것으로 한다.
+(1) 불연성 또는 난연성일 것.
+(2) 흡수성이 적을 것.
+(3) 부패 또는 곰팡이가 생기지 않는 것.
+(4) 공기류 속에서 소재에서 먼지가 일거나 소재가 떨어져 나가지 않을 것.
+
+2.5 덕트 부속품
+(1) 그릴, 레지스터 및 디퓨저
+    - 알루미늄으로 제작하여야 하며, 레지스터 및 디퓨저의 댐퍼는 풍량 조절이 용이하여야 한다.
+    - 레지스터와 그릴의 안내 날개는 노후에 의한 처짐 현상이 없도록 견고히 고정되어야 한다.
+    - 디퓨저는 후렉시블 덕트호스(2중)를 사용하여 설치하되 공조 급기용은 보온 처리한다.
+
+(2) 풍량 조절 댐퍼(VD)
+    - 케이싱은 1.5mm, 안내깃은 1.2mm 이상의 아연도금 철판이나 강판으로 제작하여 강도와 기밀성을 유지하고 안내깃의 매수는 덕트의 높이 200mm 이내마다 1매로 하고 깃이 겹치는 부분은 15mm로 한다.
+    - 댐퍼 축은 아연도금 봉강, 베어링은 포금제(댐퍼 폭이 1m 이상일 경우는 볼베어링 사용) 등으로 녹이나지 않는 재질을 사용하여 케이싱에 설치하고 댐퍼 조작 상태를 알 수 있도록 개폐 지시기도 설치한다.
+    - 진동 및 소음이 적으며 개방 시 공기 흐름에 대한 저항이 적도록 한다.
+
+(3) 방화 댐퍼(FD)
+    - 케이싱 및 안내깃은 1.6mm 이상의 강판제로 배연 시에 생기는 열 및 기류에 의하여 변형 또는 폐쇄되는 일이 없는 구조로 하고 댐퍼 축은 봉강, 베어링은 녹이슬지 않는 재질을 사용하여 케이싱에 설치하고 댐퍼 조작 상태를 알 수 있도록 개폐 지시기도 설치한다.
+    - 퓨저블 링크(72℃ 용융) 방식으로 하여야 한다.
+
+(4) 라인 디퓨저
+    - 알루미늄으로 제작되며 풍량 및 기류방향 조절 기능이 있어야 한다.
+    - 챔버는 강판으로 제작되며 덕트 연결 부분에는 풍량 조절용 댐퍼를 설치하고 난연성 플렉시블 덕트 호스로 연결한다.
+
+(5) 플렉시블 덕트
+    - 불연재료로 인정을 받은 것으로서 충분한 가소성과 내압강도 및 내식성, 흡음성을 갖는 것으로 하고 냉난방에 사용하는 것은 열 절연성이 우수한 것으로 한다.
+    - 길이는 1.5m 이내로 하며 기기 연결부에만 사용한다.
+
+3. 시공
+3.1 시공상의 주의사항
+(1) 덕트의 소음방지용 내부 첨가물은 먼지의 발생원이 되는 수가 있으므로 원칙적으로 사용하지 않는다.
+(2) 공조계통에 높은 압력이 유지될 때에는 필터 등 관련계통의 강도를 체크한다.
+(3) 덕트류의 점검구의 강도와 기밀성 확보에 주의하고, 개구부에 대해서는 운전 중에도 개폐가 가능한 구조로 한다.
+(4) 덕트의 분기 접속부와 접속방법은 플랜지를 사용하여 볼트나 리벳으로 연결한다. 또, 분기 접속부의 시일은 반드시 한다.
+(5) 기기의 접속 부분 및 벽, 바닥 관통부의 덕트는 방진을 위해 플렉시블 이음을 사용한다.
+(6) 덕트나 배관의 진동이 건축본체에 전달되지 않게 방진을 고려한 지지나 관통부 전후의 플렉시블 이음장치를 한다.
+(7) 취출구류는 천장면과의 시일이 가능한 것으로 한다.
+
+3.2 제작 및 설치
+(1) 덕트는 제살접기 방식의 기계식 공법으로 제작한다. (단, 설치 여건상 불가피할 경우는 플랜지를 사용하여 연결한다.)
+(2) 공기조화 및 환기용 덕트는 모두 내부의 공기압력에 대하여 변형이 없고 공기저항 및 누설이 적으며 기류에 대한 발생 소음이 적은 구조로 한다.
+(3) 곡관 부분의 내측반경은 반경방향의 폭 이상으로 한다.
+(4) 단면을 변형시킬 때는 급격한 변형을 피하고 완만하게 축소시키거나 확대시키며 경사 각도를 15° 및 30° 범위 내로 한다.
+(5) 덕트는 행가 및 지지철물로 견고히 설치한다. (지지철물은 아연도금 제품을 사용)
+(6) 방화구획과 기타 벽면을 관통하는 덕트의 틈새는 암면 보온재 또는 기타 불연재로 메운다.
+(7) 공조덕트 내 풍량조절을 위해 댐퍼를 부착할 경우에는 점검구(200×200mm)를 설치하여야 한다.
+(8) 송풍기 흡입 챔버에는 유지관리를 위해 점검문(400×500mm)을 설치하여야 한다.
+(9) 환기실에서 환기구로 연결되는 덕트 입구에는 이물질의 침입을 방지하기 위해 아연도금된 앵글플랜지에 스테인리스망(#4)을 설치한다.
+
+3.3 방화댐퍼 설치
+(1) 방화구획 관통 모든 덕트에 방화댐퍼를 설치하여야 한다.
+(2) 설치 후 점검구를 확보하여야 한다. (댐퍼 전면 600×600mm 이상)
+(3) 동작 확인 레버의 접근이 가능하여야 한다.
+
+3.4 취출구·흡입구 설치
+(1) 천장 마감 후 설치하며, 수평을 유지하여야 한다.
+(2) 인접 조명기구, 스프링클러와 이격거리를 준수하여야 한다.
+
+4. 시험 및 검사
+(1) 기밀 시험: 공기조화 및 환기용 덕트의 누설시험은 원칙적으로 소방검사 규칙(배연설비의 점검기준)에 의한 배연 풍도의 누설 시험 방법에 따라 시행하여 공기 누설이 없는 것을 확인한다.
+(2) 풍량 측정(TAB): 설계 풍량의 ±10% 이내이어야 한다.
+(3) 방화댐퍼 퓨저블 링크 동작을 확인하여야 한다.
+(4) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 9. 위생기구
+    // ============================================================
+    {
+      id: "sanitary",
+      name: "위생기구",
+      items: [
+        {
+          id: "sanitary_general",
+          name: "위생기구 설비공사",
+          content: `위생기구 설비공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 위생기구(대변기, 소변기, 세면기, 욕조 등) 및 관련 부속품의 설치에 적용한다.
+
+1.2 관련 규격
+(1) KS L 1551 : 위생도기
+(2) KS B 2331 : 일반용 수도꼭지
+(3) KS B 1534 : 위생도기 부속 쇠붙이
+(4) 수도법
+
+2. 자재
+2.1 위생도기
+(1) 위생도기는 KS L 1551(위생도기)에 합격한 것으로 하며 금이 갔거나, 흠집, 기포, 바늘구멍 및 반점이 없는 고급품이어야 하며 표면은 광택이 나고 KS 규격에 따라 결정 허용범위 내이어야 한다.
+(2) 위생기구에 부속되는 트랩의 봉수 깊이(Water Seal Trap)는 50mm 이상 100mm 이하로 하며 악취가 실내로 유입되지 못하도록 배수관에 장치한다.
+
+2.2 수전류 및 부속품
+(1) 수도꼭지 및 부속품은 KS B 2331(일반용 수도꼭지)에 합격한 것으로 한다.
+(2) 위생도기 또는 도제 이외의 위생도기에 준하는 제품에 부속되는 수도꼭지 이외의 부속품은 KS B 1534(위생도기 부속 쇠붙이)에 합격한 것으로 한다.
+
+3. 시공
+3.1 설치
+(1) 장애자용 위생기구는 신체 장애자용 금구(스테인리스제)를 부착한다.
+(2) 원형 세면기는 마블(20mm, 카운터용)에 설치한다.
+(3) 각종 위생기구 설치를 위한 배관의 수직관 상부에는 수전 개폐 시 소음, 진동과 급격한 수압 변동을 방지하기 위하여 300mm 이상의 에어챔버를 설치한다.
+
+4. 시험 및 검사
+(1) 설치검사: 각 기구가 정상으로 견고하게 설치되어 있는지를 검사한다.
+(2) 통수시험
+    - 공사완료 후 통수시험을 해서 기구 부속품에서의 누수를 검사한다.
+    - 봉수 트랩 및 접속 부품은 0.35MPa의 수압 또는 0.15MPa의 기압으로 시험하였을 때 누설 등 이상이 없어야 한다.
+(3) 기밀시험
+    - 배관은 위생기구 설치 전에 수압시험을 행하고 기구 설치 후 트랩을 봉수한 후 기밀시험을 행한다.
+    - 모든 트랩을 봉한 후 25mm 수두압 하에서 15분 이상 연기 시험 또는 냄새(박하)시험을 하여 누설 유무를 검사한다.
+(4) 수압시험
+    최고 위치의 개구부를 제외한 모든 개구부를 밀폐하고 최고 개구부까지 물을 충만시킨 후 3m 이상의 수두압으로 15분 이상 시험하여 누설 등 이상 유무를 검사한다.
+
+<배관 수압시험 기준표>
+   구분          | 시험방법    | 최소압력    | 최소유지시간
+   -------------|-----------|-----------|----------
+   급수(직결)    | 수압시험    | 0.9MPa    | 60분
+   급수(고가수조이하) | 수압시험 | 0.75MPa   | 60분
+   급수(양수관)   | 수압시험    | 0.75MPa   | 60분
+   배수(건물내 오수·잡배수) | 만수시험 | 0.03MPa | 30분
+   배수(대지 배수관) | 기압시험  | 0.03MPa   | 15분
+
+   ※ 압력은 배관의 최저부에서 측정된 것으로 한다.
+
+(5) 기능시험: 세척밸브 및 각종 수도꼭지 등은 통수 후 유량 조절을 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 10. 자동제어
+    // ============================================================
+    {
+      id: "autocontrol",
+      name: "자동제어",
+      items: [
+        {
+          id: "ddc",
+          name: "자동제어 (DDC)",
+          content: `자동제어 설비공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비의 자동제어 시스템(DDC, 온도조절기, 전동밸브, 전동댐퍼 등)에 적용한다.
+
+1.2 관련 규격
+(1) KCS 31 60 05 : 자동제어 설비
+(2) 건축물의 에너지절약 설계기준
+(3) ASHRAE 기준
+
+2. 자재
+2.1 제어 방식
+(1) DDC(Direct Digital Control) 방식을 원칙으로 한다.
+(2) 개별 기기 제어 또는 중앙집중 제어(도면 지정)
+(3) BACnet, MODBUS 등 개방형 통신 프로토콜을 사용하여야 한다.
+
+2.2 센서
+(1) 온도 센서: 실내 온도, 덕트 온도, 코일 입출구 온도 (±0.5℃ 정밀도)
+(2) 습도 센서: 실내 습도 (±3% RH 정밀도)
+(3) CO2 센서: 외기 제어용 (±50ppm 정밀도)
+(4) 압력 센서: 덕트 정압, 차압
+
+2.3 전동 기기
+(1) 전동 2방향 밸브: 냉·온수 코일 제어용
+(2) 전동 3방향 밸브: 혼합 또는 분배용
+(3) 전동 댐퍼: 외기·환기·배기 조절용
+(4) 구동기 제어 방식: ON/OFF 또는 비례 제어
+
+3. 시공
+3.1 제어반
+(1) 함 내 기기 배치는 유지보수가 용이하게 배열하여야 한다.
+(2) 배선 정리 및 단자 표시를 명확히 하여야 한다.
+
+3.2 센서 설치
+(1) 실내 온·습도 센서: 바닥에서 1.5m 높이, 직사광선 및 바람의 영향이 없는 위치에 설치하여야 한다.
+(2) 덕트 센서: 직관부에 설치하며, 기류 방향을 고려하여야 한다.
+(3) CO2 센서: 재실 공간의 대표 위치에 설치하여야 한다.
+
+3.3 전동 밸브·댐퍼
+(1) 수동 Override 기능을 확보하여야 한다.
+(2) 개도 표시 기능을 갖추어야 한다.
+(3) Fail-Safe 기능(정전 시 안전 위치로 자동 이동)을 갖추어야 한다.
+
+4. 시험 및 검사
+(1) 점·소등 및 개·폐 확인 시험을 실시하여야 한다.
+(2) 제어 시퀀스 동작을 확인하여야 한다.
+(3) 비상 정지 및 Fail-Safe 동작을 확인하여야 한다.
+(4) 통신 프로토콜 연동 시험을 실시하여야 한다.
+(5) 계약자는 시운전 계획 및 시험 점검표 등을 발주자에게 제출하여 승인을 받아야 한다.
+(6) 시운전 시 계약자는 발주자의 입회 하에 시운전을 시행하고, 그 결과 보고서를 제출하여야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 11. 철물가공 및 도장
+    // ============================================================
+    {
+      id: "metalwork_paint",
+      name: "철물가공·도장",
+      items: [
+        {
+          id: "metalwork",
+          name: "철물 가공 및 용접 공사",
+          content: `철물 가공 및 용접 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비 공사에 수반되는 철물 가공 및 용접 공사에 적용한다.
+
+1.2 관련 규격
+(1) KS D 3503 : 일반 구조용 압연강재
+(2) KS D 3566 : 일반 구조용 탄소강관
+(3) KS D 7004 : 연강 피복 아크 용접봉
+(4) KS D 7005 : 연강용 가스 용접봉
+(5) KS D 7006 : 고장력 강용 피복 아크 용접봉
+
+2. 자재
+2.1 강재
+강재는 KS D 3503(일반 구조용 압연강재) 및 KS D 3566(일반 구조용 탄소강관)의 규정에 따른다.
+
+2.2 볼트
+볼트, 너트 및 와셔의 재료는 KS 규격품으로 한다.
+
+2.3 용접 재료
+용접 재료는 다음의 규격품 및 기타 용접에 적합한 양질의 재료로써 용접 조건에 따라 선정한다.
+(1) KS D 7004(연강 피복 아크 용접봉)
+(2) KS D 7005(연강용 가스 용접봉)
+(3) KS D 7006(고장력 강용 피복 아크 용접봉)
+
+3. 시공
+3.1 철물 가공
+(1) 금긋기 작업은 공작도, 현척도, 형판, 자 등으로 정확하게 시행한다. 흠집을 내면 못쓰게 되는 재료에는 정, 각인, 센터 펀치 등을 사용해서는 안 된다.
+(2) 소재의 절단면은 지정한 것 이외에는 축과 수직으로 한다. 가스절단을 할 때에는 재료의 모양, 치수 등을 감안하여 정확하고 깨끗하게 작업하고 그라인더 등으로 다듬질 한다. 강판을 기계 절단기로 절단할 때는 판 두께 9mm 이하로 한다.
+(3) 절단면에 흠, 슬래그의 부착 등이 있을 때에는 수정하거나 떨어 내어야 한다.
+(4) 굽힘 가공은 기계적 상온 가공 또는 열간가공으로 한다. 다만 열간가공은 적열상태에서 행하고 급냉해서는 안 된다.
+(5) 소재 또는 조립된 부재의 변형은 각 공정에서 재질을 손상하지 않도록 고정한다.
+
+3.2 볼트 이음
+(1) 마찰면을 보호하기 위한 주의를 요하며 녹, 기름, 도료, 먼지 등 마찰력을 저하시키는 것 등이 발생하였거나 부착하였을 때는 조립 작업하기에 앞서 그것들을 제거한다.
+(2) 이음부는 먼저 마찰면을 밀착시킨 후 볼트로 조인다.
+(3) 가조립 후 볼트 구멍이 서로 맞지 않을 때는 리이머로 수정하고 이음부에 부착한 찌꺼기 등은 깨끗하게 제거한 후 조립한다.
+(4) 조임 공구 및 검사용 기기는 볼트의 치수에 알맞는 것을 사용하고 언제나 정비 점검을 철저히 한다.
+
+3.3 용접
+(1) 모재의 용접면은 용접하기 전에 물기, 기름기, 슬래그, 도료 등 용접에 지장이 있는 것들을 제거한다.
+(2) 모든 용접과정은 KS 규정에 따른다.
+(3) 용접은 전기 아크 용접을 원칙으로 하며 발주자의 승인하에 산소 용접을 할 수 있다.
+(4) 용접은 자격증을 지닌 기능사가 행하도록 한다.
+(5) 용접부는 결함이 없고 슬래그가 발생치 않도록 한다.
+(6) 용접면은 용접하기에 적합하도록 녹, 스케일 등 이물질이 없어야 한다.
+(7) 용접 순서는 용접에 의한 변형 및 잔류 응력이 작아지도록 한다.
+(8) 재질, 두께, 기온 등을 고려하여 필요한 경우에는 예열을 한다.
+(9) 용접 작업 중에는 누전, 전격, 아크광에 의한 사고 또는 용융 금속, 아크 등에 의한 화재방지 조치를 한다.
+(10) 바람이 심하게 부는 날이나 적은 상태의 강재를 용접해서는 안 되며 이를 방지할 수 있는 실내에서 용접할 경우는 그렇지 않다.
+(11) 용접 후 용접부 표면의 슬래그를 완전히 제거하고 녹이 발생할 염려가 있는 부위는 적절한 방청 처리를 한다.
+(12) 공사현장 용접을 시행하는 부분의 양측 약 200mm의 범위는 칠을 해서는 안 된다.`
+        },
+        {
+          id: "painting",
+          name: "도장 공사",
+          content: `도장 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비의 배관, 기기, 덕트, 탱크류 등의 도장 공사에 적용한다.
+
+1.2 관련 규격
+(1) KS M 5320 : 조합 페인트
+(2) SSPC(Steel Structure Painting Council) 기준
+
+2. 자재
+2.1 도장재료
+도장재료는 KS 규격에 합격한 것을 사용함을 원칙으로 한다.
+
+2.2 도장 일람표
+
+   항목           | 표면처리(공장) | 표면처리(현장) | 초벌 재료               | 도장회수 | 마감 재료                   | 도장회수
+   --------------|------------|-------------|------------------------|--------|--------------------------|------
+   대기에 노출된 구조물 | SSPC-SP6   | -           | JIS K5623 Lead Sub oxide 방청페인트 | 1     | KSM5335 알루미늄 페인트    | 2
+   공조 장비류     | SSPC-SP2   | -           | 제작자 표준사양           | -      | 제작자 표준사양              | -
+   대기온도에서 무보온 배관 | -        | SSPC-SP3    | JIS K5622 광명단 방청페인트 | 1     | JIS K5516 알카리 수지형 혼합 페인트 | 2
+   보온배관        | -          | SSPC-SP3    | -                      | -      | -                        | -
+
+* SSPC(Steel Structure Painting Council)
+
+3. 시공
+3.1 일반사항
+(1) 도장은 조합된 도료 사용을 원칙으로 하고 바탕의 조도, 흡수성의 대소, 기온의 고저 등에 따라서 도장에 알맞도록 조정할 수 있다.
+(2) 도장 공정의 방치 기간은 재료의 종류, 기후 조건에 따라서 적절히 정하여 시공한다.
+(3) 상수에 접하거나 접촉할 가능성이 있는 관, 기기, 탱크류 등에 사용하는 방청, 방식 및 마감도장용 재료는 수질에 악영향을 미치지 않으며 위생상 무해한 것으로 한다.
+(4) 특별한 규정이 없는 한 모든 도장 작업은 페인트 제조자의 지침서에 따라 시행한다.
+(5) 모든 기기는 입고 시 마감 도장이 있어야 하며 계약자는 운반, 설치 시에 손상된 부분을 Touch-up 도장한다.
+
+3.2 도장 시공
+(1) 도장방법
+    - 솔 칠: 사용 도료에 알맞는 솔을 이용하여 흔적이 없게 깨끗하도록 도장한다.
+    - 기계 칠: 도장용 분무기를 사용하고 노즐의 종류, 구경 및 사용 도료에 적절한 공기압력 등을 선정하여 얼룩이 생기지 않도록 한다.
+    - 로울러 브러쉬 칠: 도장면에 적합한 로울러 브러쉬를 사용하여 면이 균일하도록 시공한다.
+(2) 도장 시공 시의 유의사항
+    - 도장하기 전 표면에 녹, 스케일 등 이물질이 없어야 하며 습도가 많거나 우기에는 도장 시공을 피해야 한다.
+    - 얼룩, 칠 등이 벗겨진 곳, 거푸집 등에 결함이 없고 전면이 균일하도록 도장한다.
+    - 도장 부분은 오염되거나 손상되지 않도록 주의하고 필요에 따라서 적절한 보호조치를 한다.
+    - 도장 장소의 온습도 및 환기 등을 도료의 종류와 건조 조건에 따라 정한다.
+    - 배관의 경우 관내 유체의 흐름 방향 표지, 문자 및 표지색 등을 구분하여 식별이 용이하도록 한다.
+
+3.3 보수 도장
+다음과 같은 현상이 발생되면 보수 도장을 실시해야 한다.
+(1) 도막이 부착되지 않았거나 수축이 생긴 경우
+(2) 도막에 기포가 발생한 경우
+(3) 일부분이 도장되지 않았을 경우
+
+4. 시험 및 검사
+도장 시공은 각 공정 전후에 걸쳐 발주자의 입회 하에 검사한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 12. 방진·내진·소음
+    // ============================================================
+    {
+      id: "antivib",
+      name: "방진·내진·소음",
+      items: [
+        {
+          id: "antivib_general",
+          name: "방진·내진",
+          content: `방진·내진 설비 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비의 진동 전달 방지 및 지진 대비 내진 지지 공사에 적용한다.
+
+1.2 관련 규격
+(1) 건축물 내진설계기준 (KDS 41)
+(2) 기계설비법 기술기준
+(3) 내진 설계기준 공통 적용사항 (KDS 17 10 00)
+
+2. 자재
+2.1 방진 기기
+(1) 방진 패드: 네오프렌 또는 천연 고무(경도 Shore A 30~60)로 하여야 한다.
+(2) 방진 스프링 행거: 코일 스프링형(정적 처짐 25~50mm)으로 하여야 한다.
+(3) 방진 가대: 방진 마운트 내장 일체형 또는 분리형으로 하여야 한다.
+(4) 플렉시블 이음: 배관 연결부, 스테인리스 망 내장 고무형으로 하여야 한다.
+
+2.2 내진 지지
+(1) 내진 행거 및 브라켓: KS 또는 동등 이상 인증 제품을 사용하여야 한다.
+(2) 앵커볼트: 화학 앵커 또는 팽창 앵커로 하여야 한다.
+(3) 내진 스트랩: 배관 고정용으로 사용하여야 한다.
+
+3. 시공
+3.1 방진 시공
+(1) 회전기기(펌프, 팬, 공조기): 방진 가대 위에 설치하여야 한다.
+(2) 방진 스프링 행거: 덕트 행거, 대형 배관 행거에 적용하여야 한다.
+(3) 배관 플렉시블 이음: 기기 접속부 흡·토출 각 1개소를 설치하여야 한다.
+(4) 진동방지를 위한 방진재는 제작자의 표준 사양에 따라서 설치한다.
+
+3.2 내진 시공
+(1) 내진 구역 분류에 따른 내진 지지물을 설치하여야 한다.
+(2) 직경 DN65 이상 배관: 횡방향 내진 지지를 하여야 한다.
+(3) 직경 DN100 이상 배관: 종방향 및 횡방향 내진 지지를 하여야 한다.
+(4) 중량 기기: 앵커볼트로 기초 또는 구조체에 고정하여야 한다.
+(5) 내진 지지는 배관의 확장을 고려하고 배관의 흔들림을 방지하기 위해 최소 한 개의 지지대가 각 바닥에 설치되어야 한다.
+
+4. 시험 및 검사
+(1) 설치 상태를 육안으로 확인하여야 한다.
+(2) 운전 시 진동을 측정하여야 한다. (허용 진동치 이내)
+(3) 내진 지지물 체결 상태를 확인하여야 한다.`
+        },
+        {
+          id: "noise",
+          name: "소음방지",
+          content: `소음방지 설비 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 기계설비의 소음 방지 공사에 적용한다.
+
+1.2 관련 규격
+(1) 소음·진동관리법
+(2) 건축물의 설비기준 등에 관한 규칙
+(3) ASHRAE 소음 기준
+
+2. 자재
+2.1 소음기
+(1) 덕트 소음기: 흡음형 또는 팽창형(챔버형)으로 하여야 한다.
+(2) 흡음재: 유리섬유 또는 암면(공기 중 비산 방지 처리)으로 하여야 한다.
+(3) 소음 감쇠량: 지정 NC 기준 달성에 필요한 성능을 확보하여야 한다.
+
+2.2 방음 재료
+(1) 제진 시트: 배관, 덕트 진동 억제용
+(2) 흡음 패널: 기계실 벽·천장 마감
+
+2.3 소음 기준
+(1) 주거 공간: NC-30 이하
+(2) 사무실: NC-35 이하
+(3) 기계실 인접 공간: NC-40 이하
+(4) 장비 표면으로부터 1m 거리에서 85 dBA 이하
+
+3. 시공
+3.1 소음기 설치
+(1) 팬, 공조기 급·배기 덕트에 설치하여야 한다.
+(2) 기류 방향에 주의하고, 압력 손실을 최소화하여야 한다.
+(3) 덕트의 소음방지용 내부 첨가물은 먼지의 발생원이 되는 수가 있으므로 원칙적으로 사용하지 않는다.
+
+3.2 차음 시공
+(1) 기계실 벽·천장: 흡음재 + 차음재 이중 시공을 하여야 한다.
+(2) 배관 관통부: 차음 처리를 하여야 한다.
+(3) 기기의 접속 부분 및 벽, 바닥 관통부의 덕트는 방진을 위해 플렉시블 이음을 사용한다.
+
+4. 시험 및 검사
+(1) 소음을 측정하여야 한다. (지정 NC값 이하)
+(2) 운전 시 소음을 점검하여야 한다.`
+        }
+      ]
+    },
+
+    // ============================================================
+    // 13. 시험·조정·평형 (TAB)
+    // ============================================================
+    {
+      id: "tab",
+      name: "시험·조정·평형 (TAB)",
+      items: [
+        {
+          id: "tab_general",
+          name: "TAB 공사 (시험·조정·평형)",
+          content: `TAB (Test, Adjust, Balance) 공사
+
+1. 일반사항
+1.1 적용범위
+본 시방서는 완성된 공기조화 및 환기 시스템의 시험, 조정, 평형(TAB) 작업에 적용한다. 공기조화설비에 대한 시험조정을 통하여 에너지 절약 및 관리가 가능하도록 한다.
+
+1.2 관련 규격
+(1) 공기조화·냉동공학회의 TAB 기술기준
+(2) ASHRAE Guideline 0 : The Commissioning Process
+(3) NEBB (National Environmental Balancing Bureau) 기준
+
+2. TAB 목적
+(1) 설계 목적에 부합되도록 각종 설비를 검토하고 조정하는 제반 절차를 수행한다.
+(2) 에너지 절약 및 효율적인 설비 관리가 가능하도록 한다.
+
+3. TAB 항목
+(1) System 검토
+(2) 공기 분배 계통
+(3) 물 분배 계통
+(4) 소음 계통
+(5) 종합보고서 작성
+
+4. 측정 기기
+(1) 풍속계: 전방향 풍속계 또는 피토관
+(2) 마노미터: 덕트 정압 측정
+(3) 온·습도계
+(4) 소음계: A특성 가중 소음계
+(5) 유량계
+
+5. TAB 순서
+5.1 사전 점검
+(1) 덕트, 배관 시공 완료 및 이물질 제거 확인
+(2) 필터 설치 상태 확인
+(3) 댐퍼 개도 초기화
+
+5.2 풍량 측정 및 조정
+(1) 전체 계통 풍량을 측정한다.
+(2) 각 취출구·흡입구 풍량을 측정한다.
+(3) VD(풍량 조절 댐퍼) 조정으로 설계 풍량을 달성한다.
+(4) 허용 오차: 설계 풍량의 ±10% 이내
+
+5.3 수량(유량) 측정 및 조정
+(1) 전체 계통 유량을 측정한다.
+(2) 각 계통 유량 조정 밸브를 조정한다.
+(3) 허용 오차: 설계 유량의 ±10% 이내
+
+5.4 성능 확인
+(1) 냉·난방 도달 온도를 확인한다.
+(2) 제어 시퀀스 최종 확인을 한다.
+(3) 소음을 측정한다.
+
+6. 보고서
+(1) TAB 보고서를 작성한다. (측정값, 설계값, 조정값 비교)
+(2) 최종 댐퍼·밸브 개도를 기록한다.
+(3) 시운전 결과 보고서를 감독관에게 제출한다.
+(4) 계약자는 TAB 완료 후 준공 전에 종합 보고서를 발주자에게 제출한다.`
+        }
+      ]
+    }
+
+  ]
+};
+
+// ============================================================
+// 상태
+// ============================================================
+let selectedIds = new Set();
+let previewGenerated = false;
+
+// ============================================================
+// 항목별 태그 정의
+// required: 모든 프로젝트 필수 / optional: 프로젝트별 / sanitary: 위생공사 시
+// ============================================================
+const ITEM_TAGS = {
+  // 일반시방서 - 무조건 필수
+  'general_01':       'required',
+  'equip_install':    'required',
+  // 공조·냉난방 - 모두 선택
+  'pac':              'optional',
+  'sac':              'optional',
+  'ehp':              'optional',
+  'doas':             'optional',
+  'erv':              'optional',
+  'ahu':              'optional',
+  'unit_heater':      'optional',
+  'radiator':         'optional',
+  // 환기 - 모두 선택
+  'inline_fan':       'optional',
+  'ceiling_fan':      'optional',
+  'wall_fan':         'optional',
+  // 열원·위생 - 조건별
+  'elec_waterheater': 'sanitary',
+  'elec_boiler':      'optional',
+  'cooling_tower':    'optional',
+  // 배관·기계실 - 조건별
+  'pump':             'optional',
+  'water_tank':       'sanitary',
+  // 배관 - 조건별
+  'piping_general':   'optional',
+  'piping_hotwater':  'sanitary',
+  // 보온 - 조건별
+  'insulation_general': 'optional',
+  // 덕트 - 조건별
+  'duct_general':     'optional',
+  // 위생기구 - 위생
+  'sanitary_general': 'sanitary',
+  // 자동제어 - 선택
+  'ddc':              'optional',
+  // 철물·도장 - 선택
+  'metalwork':        'optional',
+  'painting':         'optional',
+  // 방진·내진·소음 - 선택
+  'antivib_general':  'optional',
+  'noise':            'optional',
+  // TAB - 선택
+  'tab_general':      'optional',
+};
+
+const TAG_LABEL = {
+  required: '필수',
+  optional: '선택',
+  sanitary: '위생',
+};
+const TAG_CLASS = {
+  required: 'badge-required',
+  optional: 'badge-optional',
+  sanitary: 'badge-sanitary',
+};
+
+// 빠른 선택 세트
+const QUICK_SETS = {
+  // 진짜 필수: 일반시방서 + 기기설치 일반
+  required: ['general_01', 'equip_install'],
+
+  // 냉난방 세트: 냉난방기기 + 배관(냉온수) + 보온 + 철물 + 도장
+  cooling: [
+    'general_01', 'equip_install',
+    'pac',                          // 대표 냉난방기기 (필요시 변경)
+    'piping_general',               // 냉온수 배관
+    'insulation_general',           // 보온
+    'metalwork', 'painting',
+    'antivib_general',              // 펌프·팬 방진
+  ],
+
+  // 환기·덕트 세트: 환기팬 + 덕트 + 보온 + 철물 + 도장 + TAB
+  ventduct: [
+    'general_01', 'equip_install',
+    'inline_fan',                   // 대표 환기기기
+    'duct_general',                 // 덕트
+    'insulation_general',           // 보온
+    'metalwork', 'painting',
+    'tab_general',                  // 풍량 조정
+  ],
+
+  // 위생 세트: 배관(급수·급탕) + 보온 + 위생기구 + 저수조 + 온수기 + 펌프 + 철물 + 도장
+  sanitary: [
+    'general_01', 'equip_install',
+    'piping_general',               // 급수·배수 배관
+    'piping_hotwater',              // 급탕배관
+    'insulation_general',           // 보온
+    'sanitary_general',             // 위생기구
+    'water_tank',                   // 저수조
+    'elec_waterheater',             // 전기온수기
+    'pump',                         // 급수펌프
+    'metalwork', 'painting',
+  ],
+};
+
+// ============================================================
+// 초기화
+// ============================================================
+function init() {
+  buildSidebar();
+  updateCount();
+}
+
+function buildSidebar() {
+  const list = document.getElementById('categoryList');
+  list.innerHTML = '';
+  HVAC_SPECS.categories.forEach((cat, ci) => {
+    const sec = document.createElement('div');
+    sec.className = 'cat-section';
+    sec.innerHTML = `
+      <div class="cat-header" onclick="toggleCat(${ci}, event)">
+        <input type="checkbox" class="cat-checkbox" id="cat-${cat.id}" onclick="toggleCatCheck('${cat.id}', event)">
+        <span class="cat-name">${cat.name}</span>
+        <span class="cat-count">${cat.items.length}개</span>
+        <span class="cat-toggle" id="toggle-${ci}">▶</span>
+      </div>
+      <div class="cat-items" id="items-${ci}">
+        ${cat.items.map(item => {
+          const tag = ITEM_TAGS[item.id];
+          const badge = tag ? `<span class="badge ${TAG_CLASS[tag]}">${TAG_LABEL[tag]}</span>` : '';
+          return `
+          <div class="item-row" id="row-${item.id}" onclick="toggleItem('${item.id}')">
+            <input type="checkbox" class="item-checkbox" id="chk-${item.id}" onclick="event.stopPropagation(); toggleItem('${item.id}')">
+            <span class="item-name">${item.name}</span>
+            ${badge}
+          </div>`;
+        }).join('')}
+      </div>
+    `;
+    list.appendChild(sec);
+    if(ci === 0) {
+      setTimeout(() => toggleCat(ci, null, true), 0);
+    }
+  });
+}
+
+function quickSelect(type) {
+  if(type === 'clear') {
+    getAllItems().forEach(item => {
+      selectedIds.delete(item.id);
+      updateItemUI(item.id, false);
+    });
+    HVAC_SPECS.categories.forEach(cat => updateCatCheckState(cat.id));
+    updateCount();
+    return;
+  }
+  const ids = QUICK_SETS[type] || [];
+  // 현재 선택 초기화 후 세트만 선택
+  getAllItems().forEach(item => {
+    selectedIds.delete(item.id);
+    updateItemUI(item.id, false);
+  });
+  ids.forEach(id => {
+    selectedIds.add(id);
+    updateItemUI(id, true);
+  });
+  HVAC_SPECS.categories.forEach(cat => updateCatCheckState(cat.id));
+  updateCount();
+  // 선택된 카테고리 자동 열기
+  HVAC_SPECS.categories.forEach((cat, ci) => {
+    const hasSelected = cat.items.some(item => selectedIds.has(item.id));
+    if(hasSelected) toggleCat(ci, null, true);
+  });
+}
+
+function toggleCat(idx, e, forceOpen) {
+  if(e && e.target.type === 'checkbox') return;
+  const items = document.getElementById(`items-${idx}`);
+  const toggle = document.getElementById(`toggle-${idx}`);
+  const isOpen = items.classList.contains('open');
+  if(forceOpen || !isOpen) {
+    items.classList.add('open');
+    toggle.classList.add('open');
+  } else {
+    items.classList.remove('open');
+    toggle.classList.remove('open');
+  }
+}
+
+function toggleCatCheck(catId, e) {
+  e.stopPropagation();
+  const cat = HVAC_SPECS.categories.find(c => c.id === catId);
+  const cb = document.getElementById(`cat-${catId}`);
+  if(cb.checked) {
+    cat.items.forEach(item => {
+      selectedIds.add(item.id);
+      updateItemUI(item.id, true);
+    });
+  } else {
+    cat.items.forEach(item => {
+      selectedIds.delete(item.id);
+      updateItemUI(item.id, false);
+    });
+  }
+  updateCount();
+  updateCatCheckState(catId);
+}
+
+function toggleItem(itemId) {
+  if(selectedIds.has(itemId)) {
+    selectedIds.delete(itemId);
+    updateItemUI(itemId, false);
+  } else {
+    selectedIds.add(itemId);
+    updateItemUI(itemId, true);
+  }
+  updateCount();
+  // 상위 카테고리 체크박스 업데이트
+  HVAC_SPECS.categories.forEach(cat => {
+    if(cat.items.find(i => i.id === itemId)) {
+      updateCatCheckState(cat.id);
+    }
+  });
+}
+
+function updateItemUI(itemId, checked) {
+  const chk = document.getElementById(`chk-${itemId}`);
+  const row = document.getElementById(`row-${itemId}`);
+  if(chk) chk.checked = checked;
+  if(row) row.classList.toggle('selected', checked);
+}
+
+function updateCatCheckState(catId) {
+  const cat = HVAC_SPECS.categories.find(c => c.id === catId);
+  const cb = document.getElementById(`cat-${catId}`);
+  if(!cb) return;
+  const allSelected = cat.items.every(i => selectedIds.has(i.id));
+  const someSelected = cat.items.some(i => selectedIds.has(i.id));
+  cb.checked = allSelected;
+  cb.indeterminate = !allSelected && someSelected;
+}
+
+function updateCount() {
+  document.getElementById('selectedCount').textContent = selectedIds.size;
+}
+
+function selectAll() {
+  const allSelected = selectedIds.size === getAllItems().length;
+  getAllItems().forEach(item => {
+    if(allSelected) {
+      selectedIds.delete(item.id);
+      updateItemUI(item.id, false);
+    } else {
+      selectedIds.add(item.id);
+      updateItemUI(item.id, true);
+    }
+  });
+  HVAC_SPECS.categories.forEach(cat => updateCatCheckState(cat.id));
+  updateCount();
+  document.querySelector('.btn-selectall').textContent = allSelected ? '전체 선택' : '전체 해제';
+}
+
+function getAllItems() {
+  return HVAC_SPECS.categories.flatMap(c => c.items);
+}
+
+// ============================================================
+// 플레이스홀더 치환
+// ============================================================
+function buildScopeList() {
+  // 선택된 항목 기반으로 공사범위 자동 생성
+  const scopes = [];
+  const ids = [...selectedIds];
+  const hasCooling = ids.some(id => ['pac','sac','ehp','ahu','doas','erv','unit_heater','radiator','elec_boiler','cooling_tower'].includes(id));
+  const hasVent    = ids.some(id => ['inline_fan','ceiling_fan','wall_fan'].includes(id));
+  const hasSanitary= ids.some(id => ['sanitary_general','piping_hotwater','water_tank','elec_waterheater'].includes(id));
+  const hasPiping  = ids.some(id => ['piping_general'].includes(id));
+  const hasDuct    = ids.some(id => ['duct_general'].includes(id));
+
+  if(hasCooling) scopes.push('냉·난방 설비공사');
+  if(hasVent || hasDuct) scopes.push('환기 설비공사');
+  if(hasSanitary) scopes.push('위생설비 공사');
+  if(hasPiping && !hasCooling && !hasSanitary) scopes.push('배관설비 공사');
+
+  if(scopes.length === 0) scopes.push('기계설비 공사');
+
+  return scopes.map((s, i) => `${i+1}) ${s}\n`).join('');
+}
+
+function applyTemplate(content, projName, location, client) {
+  const scopeList = buildScopeList();
+  return content
+    .replace(/{{PROJ_NAME}}/g,    projName)
+    .replace(/{{LOCATION}}/g,     location)
+    .replace(/{{CLIENT}}/g,       client)
+    .replace(/{{SCOPE_LIST}}/g,   scopeList);
+}
+
+// ============================================================
+// 미리보기 생성
+// ============================================================
+function generatePreview() {
+  if(selectedIds.size === 0) { showToast('항목을 1개 이상 선택해주세요.'); return; }
+
+  document.getElementById('loadingOverlay').classList.add('show');
+  setTimeout(() => {
+    const projName  = document.getElementById('projName').value     || '○○ 프로젝트';
+    const location  = document.getElementById('projLocation').value || '○○ 소재지';
+    const client    = document.getElementById('projClient').value   || '○○ 발주자';
+
+    let itemCount = 0;
+    let tocChips = '';
+    let bodyHTML = '';
+
+    HVAC_SPECS.categories.forEach(cat => {
+      const selected = cat.items.filter(i => selectedIds.has(i.id));
+      if(selected.length === 0) return;
+      tocChips += selected.map(i => `<div class="toc-chip">${i.name}</div>`).join('');
+      bodyHTML += `<div class="spec-section">
+        <div class="spec-cat-title">${cat.name}</div>
+        ${selected.map(item => {
+          itemCount++;
+          const content = applyTemplate(item.content, projName, location, client);
+          return `<div class="spec-item">
+            <div class="spec-item-header">
+              <div class="spec-item-num">${itemCount}</div>
+              <div class="spec-item-title">${item.name}</div>
+            </div>
+            <div class="spec-content">${content}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+    });
+
+    const html = `
+      <div class="preview-doc">
+        <div class="doc-cover">
+          <div class="doc-cover-label">기계설비공사 시방서</div>
+          <div class="doc-cover-title">${projName}</div>
+          <div class="doc-cover-proj">HVAC · 기계설비 공사 시방서</div>
+          <div class="doc-cover-meta">
+            <div class="doc-meta-item"><div class="doc-meta-label">발주자</div><div class="doc-meta-value">${client}</div></div>
+            <div class="doc-meta-item"><div class="doc-meta-label">위치</div><div class="doc-meta-value">${location}</div></div>
+            <div class="doc-meta-item"><div class="doc-meta-label">수록 항목</div><div class="doc-meta-value">${selectedIds.size}개</div></div>
+          </div>
+        </div>
+        <div class="doc-toc">
+          <h3>수록 시방서 목록</h3>
+          <div class="toc-items">${tocChips}</div>
+        </div>
+        <div class="doc-body">${bodyHTML}</div>
+      </div>`;
+
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('previewContent').innerHTML = html;
+    document.getElementById('previewContent').style.display = 'block';
+    document.getElementById('btnWord').classList.add('visible');
+    previewGenerated = true;
+    document.getElementById('loadingOverlay').classList.remove('show');
+    showToast('✅ 시방서 생성 완료!');
+  }, 600);
+}
+
+// ============================================================
+// Word 다운로드
+// ============================================================
+async function downloadWord() {
+  if(!previewGenerated || selectedIds.size === 0) { showToast('먼저 시방서를 생성해주세요.'); return; }
+  document.getElementById('loadingOverlay').classList.add('show');
+  document.querySelector('.loading-box .loading-text').textContent = 'Word 파일 생성 중...';
+
+  const projName  = document.getElementById('projName').value     || '○○ 프로젝트';
+  const location  = document.getElementById('projLocation').value || '○○ 소재지';
+  const client    = document.getElementById('projClient').value   || '○○ 발주자';
+
+  try {
+    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer, BorderStyle, PageBreak } = docx;
+
+    const children = [];
+
+    // 표지
+    children.push(
+      new Paragraph({ text: '', spacing: { after: 800 } }),
+      new Paragraph({ children: [new TextRun({ text: '기계설비공사 시방서', size: 52, bold: true, color: '1a2b4a', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
+      new Paragraph({ children: [new TextRun({ text: projName, size: 40, color: '2c4a7c', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 300 } }),
+      new Paragraph({ children: [new TextRun({ text: `발주자 : ${client}`, size: 24, color: '666666', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 100 } }),
+      new Paragraph({ children: [new TextRun({ text: `위  치 : ${location}`, size: 24, color: '666666', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 800 } }),
+      new Paragraph({ children: [new PageBreak()] })
+    );
+
+    // 목차
+    children.push(
+      new Paragraph({ children: [new TextRun({ text: '시방서 목록', size: 32, bold: true, color: '1a2b4a', font: '맑은 고딕' })], spacing: { after: 300 } })
+    );
+    let no = 1;
+    HVAC_SPECS.categories.forEach(cat => {
+      const sel = cat.items.filter(i => selectedIds.has(i.id));
+      if(sel.length === 0) return;
+      children.push(new Paragraph({ children: [new TextRun({ text: `【 ${cat.name} 】`, size: 22, bold: true, color: '2c4a7c', font: '맑은 고딕' })], spacing: { before: 200, after: 80 } }));
+      sel.forEach(item => {
+        children.push(new Paragraph({ children: [new TextRun({ text: `  ${no++}. ${item.name}`, size: 22, font: '맑은 고딕' })], spacing: { after: 60 } }));
+      });
+    });
+    children.push(new Paragraph({ children: [new PageBreak()] }));
+
+    // 본문
+    HVAC_SPECS.categories.forEach(cat => {
+      const sel = cat.items.filter(i => selectedIds.has(i.id));
+      if(sel.length === 0) return;
+      sel.forEach((item, idx) => {
+        children.push(
+          new Paragraph({ children: [new TextRun({ text: item.name, size: 30, bold: true, color: '1a2b4a', font: '맑은 고딕' })], spacing: { before: 400, after: 200 },
+            border: { bottom: { color: '3a7bd5', size: 6, style: BorderStyle.SINGLE } } })
+        );
+        const replaced = applyTemplate(item.content, projName, location, client);
+        const lines = replaced.split('\n');
+        lines.forEach(line => {
+          const isSectionHead = /^\d+\./.test(line.trim()) || /^\d+\.\d+/.test(line.trim());
+          children.push(new Paragraph({
+            children: [new TextRun({ text: line, size: isSectionHead ? 22 : 20, bold: isSectionHead, font: '맑은 고딕', color: isSectionHead ? '1a2b4a' : '333333' })],
+            spacing: { after: isSectionHead ? 60 : 40 },
+            indent: line.startsWith('(') ? { left: 360 } : {}
+          }));
+        });
+        children.push(new Paragraph({ children: [new PageBreak()] }));
+      });
+    });
+
+    const doc = new Document({ sections: [{ children }] });
+    const blob = await Packer.toBlob(doc);
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `HVAC_시방서_${projName}.docx`;
+    a.click();
+    URL.revokeObjectURL(url);
+    document.getElementById('loadingOverlay').classList.remove('show');
+    document.querySelector('.loading-box .loading-text').textContent = '시방서 생성 중...';
+    showToast('📄 Word 파일 다운로드 완료!');
+  } catch(e) {
+    console.error(e);
+    document.getElementById('loadingOverlay').classList.remove('show');
+    document.querySelector('.loading-box .loading-text').textContent = '시방서 생성 중...';
+    showToast('⚠️ Word 생성 중 오류가 발생했습니다.');
+  }
+}
+
+// ============================================================
+// 탭 전환
+// ============================================================
+function switchTab(el, tabId) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  document.getElementById('tab-preview').style.display = tabId === 'preview' ? 'block' : 'none';
+  document.getElementById('tab-guide').style.display = tabId === 'guide' ? 'block' : 'none';
+}
+
+// ============================================================
+// 토스트
+// ============================================================
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ============================================================
+// 시작
+// ============================================================
+init();
+</script>
+</body>
+</html>
