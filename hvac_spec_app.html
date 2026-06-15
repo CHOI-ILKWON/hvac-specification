@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>HVAC 시방서 자동생성 시스템</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/docx/8.5.0/docx.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root {
     --blue-dark: #1a2b4a;
@@ -3029,72 +3029,134 @@ function generatePreview() {
 }
 
 // ============================================================
-// Word 다운로드
+// Word 다운로드 (순수 XML 방식 - 외부 라이브러리 불필요)
 // ============================================================
 async function downloadWord() {
   if(!previewGenerated || selectedIds.size === 0) { showToast('먼저 시방서를 생성해주세요.'); return; }
   document.getElementById('loadingOverlay').classList.add('show');
   document.querySelector('.loading-box .loading-text').textContent = 'Word 파일 생성 중...';
 
-  const projName  = document.getElementById('projName').value     || '○○ 프로젝트';
-  const location  = document.getElementById('projLocation').value || '○○ 소재지';
-  const client    = document.getElementById('projClient').value   || '○○ 발주자';
+  const projName = document.getElementById('projName').value     || '○○ 프로젝트';
+  const location = document.getElementById('projLocation').value || '○○ 소재지';
+  const client   = document.getElementById('projClient').value   || '○○ 발주자';
 
   try {
-    const { Document, Paragraph, TextRun, HeadingLevel, AlignmentType, Packer, BorderStyle, PageBreak } = docx;
+    // XML 이스케이프
+    function esc(s) {
+      return String(s)
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
+    }
 
-    const children = [];
+    // 단락 생성 헬퍼
+    function para(text, opts={}) {
+      const sz    = opts.sz    || 20;
+      const bold  = opts.bold  ? '<w:b/>' : '';
+      const color = opts.color ? `<w:color w:val="${opts.color}"/>` : '';
+      const align = opts.align ? `<w:jc w:val="${opts.align}"/>` : '';
+      const spaceAfter  = opts.spaceAfter  !== undefined ? `<w:spacing w:after="${opts.spaceAfter}"/>` : '';
+      const spaceBefore = opts.spaceBefore !== undefined ? `<w:spacing w:before="${opts.spaceBefore}"/>` : '';
+      const indentLeft  = opts.indent ? `<w:ind w:left="${opts.indent}"/>` : '';
+      const border = opts.borderBottom
+        ? `<w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="3a7bd5"/></w:pBdr>` : '';
+      const spacing = (opts.spaceAfter !== undefined || opts.spaceBefore !== undefined)
+        ? `<w:spacing ${opts.spaceBefore !== undefined ? `w:before="${opts.spaceBefore}"` : ''} ${opts.spaceAfter !== undefined ? `w:after="${opts.spaceAfter}"` : ''}/>`
+        : '';
+
+      return `<w:p>
+        <w:pPr>${align}${border}${spacing}${indentLeft}</w:pPr>
+        <w:r><w:rPr>${bold}<w:sz w:val="${sz*2}"/><w:szCs w:val="${sz*2}"/>${color}<w:rFonts w:ascii="Malgun Gothic" w:hAnsi="Malgun Gothic" w:cs="Malgun Gothic"/></w:rPr>
+        <w:t xml:space="preserve">${esc(text)}</w:t></w:r>
+      </w:p>`;
+    }
+
+    function pageBreak() {
+      return `<w:p><w:r><w:br w:type="page"/></w:r></w:p>`;
+    }
+
+    let bodyXml = '';
 
     // 표지
-    children.push(
-      new Paragraph({ text: '', spacing: { after: 800 } }),
-      new Paragraph({ children: [new TextRun({ text: '기계설비공사 시방서', size: 52, bold: true, color: '1a2b4a', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 200 } }),
-      new Paragraph({ children: [new TextRun({ text: projName, size: 40, color: '2c4a7c', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 300 } }),
-      new Paragraph({ children: [new TextRun({ text: `발주자 : ${client}`, size: 24, color: '666666', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 100 } }),
-      new Paragraph({ children: [new TextRun({ text: `위  치 : ${location}`, size: 24, color: '666666', font: '맑은 고딕' })], alignment: AlignmentType.CENTER, spacing: { after: 800 } }),
-      new Paragraph({ children: [new PageBreak()] })
-    );
+    bodyXml += para('', {spaceAfter: 800});
+    bodyXml += para('기계설비공사 시방서', {sz:26, bold:true, color:'1a2b4a', align:'center', spaceAfter:200});
+    bodyXml += para(projName, {sz:20, color:'2c4a7c', align:'center', spaceAfter:300});
+    bodyXml += para(`발주자 : ${client}`, {sz:12, color:'666666', align:'center', spaceAfter:100});
+    bodyXml += para(`위  치 : ${location}`, {sz:12, color:'666666', align:'center', spaceAfter:800});
+    bodyXml += pageBreak();
 
     // 목차
-    children.push(
-      new Paragraph({ children: [new TextRun({ text: '시방서 목록', size: 32, bold: true, color: '1a2b4a', font: '맑은 고딕' })], spacing: { after: 300 } })
-    );
+    bodyXml += para('시방서 목록', {sz:16, bold:true, color:'1a2b4a', spaceAfter:300});
     let no = 1;
     HVAC_SPECS.categories.forEach(cat => {
       const sel = cat.items.filter(i => selectedIds.has(i.id));
-      if(sel.length === 0) return;
-      children.push(new Paragraph({ children: [new TextRun({ text: `【 ${cat.name} 】`, size: 22, bold: true, color: '2c4a7c', font: '맑은 고딕' })], spacing: { before: 200, after: 80 } }));
+      if(!sel.length) return;
+      bodyXml += para(`【 ${cat.name} 】`, {sz:11, bold:true, color:'2c4a7c', spaceBefore:200, spaceAfter:80});
       sel.forEach(item => {
-        children.push(new Paragraph({ children: [new TextRun({ text: `  ${no++}. ${item.name}`, size: 22, font: '맑은 고딕' })], spacing: { after: 60 } }));
+        bodyXml += para(`  ${no++}. ${item.name}`, {sz:11, spaceAfter:60});
       });
     });
-    children.push(new Paragraph({ children: [new PageBreak()] }));
+    bodyXml += pageBreak();
 
     // 본문
     HVAC_SPECS.categories.forEach(cat => {
       const sel = cat.items.filter(i => selectedIds.has(i.id));
-      if(sel.length === 0) return;
-      sel.forEach((item, idx) => {
-        children.push(
-          new Paragraph({ children: [new TextRun({ text: item.name, size: 30, bold: true, color: '1a2b4a', font: '맑은 고딕' })], spacing: { before: 400, after: 200 },
-            border: { bottom: { color: '3a7bd5', size: 6, style: BorderStyle.SINGLE } } })
-        );
+      if(!sel.length) return;
+      sel.forEach(item => {
+        bodyXml += para(item.name, {sz:15, bold:true, color:'1a2b4a', spaceBefore:400, spaceAfter:200, borderBottom:true});
         const replaced = applyTemplate(item.content, projName, location, client);
-        const lines = replaced.split('\n');
-        lines.forEach(line => {
-          const isSectionHead = /^\d+\./.test(line.trim()) || /^\d+\.\d+/.test(line.trim());
-          children.push(new Paragraph({
-            children: [new TextRun({ text: line, size: isSectionHead ? 22 : 20, bold: isSectionHead, font: '맑은 고딕', color: isSectionHead ? '1a2b4a' : '333333' })],
-            spacing: { after: isSectionHead ? 60 : 40 },
-            indent: line.startsWith('(') ? { left: 360 } : {}
-          }));
+        replaced.split('\n').forEach(line => {
+          const isSectionHead = /^\d+\./.test(line.trim());
+          const indent = line.startsWith('   ') || line.startsWith('\t') ? 360 : 0;
+          bodyXml += para(line, {
+            sz: isSectionHead ? 11 : 10,
+            bold: isSectionHead,
+            color: isSectionHead ? '1a2b4a' : '333333',
+            spaceAfter: isSectionHead ? 60 : 30,
+            indent: indent
+          });
         });
-        children.push(new Paragraph({ children: [new PageBreak()] }));
+        bodyXml += pageBreak();
       });
     });
 
-    const doc = new Document({ sections: [{ children }] });
-    const blob = await Packer.toBlob(doc);
+    // docx XML 구조
+    const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${bodyXml}
+    <w:sectPr>
+      <w:pgSz w:w="12240" w:h="15840"/>
+      <w:pgMar w:top="1440" w:right="1080" w:bottom="1440" w:left="1260"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+
+    const relsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`;
+
+    const wordRelsXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+</Relationships>`;
+
+    const contentTypesXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`;
+
+    // JSZip으로 패키징
+    const zip = new JSZip();
+    zip.file('[Content_Types].xml', contentTypesXml);
+    zip.file('_rels/.rels', relsXml);
+    zip.file('word/document.xml', documentXml);
+    zip.file('word/_rels/document.xml.rels', wordRelsXml);
+
+    const blob = await zip.generateAsync({type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document'});
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
